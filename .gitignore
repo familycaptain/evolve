@@ -1,0 +1,20 @@
+# Per-instance config — your charter is yours, never shared in the public repo.
+# The tracked TEMPLATE is CHARTER.example.md; copy it to CHARTER.md and fill it in.
+CHARTER.md
+
+# Per-instance repo registry + fleet config (added in later phases)
+evolve.repos.yaml
+evolve.config.yaml
+.env
+
+# Local run/loop state
+.evolve/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# The Skipper TargetAdapter — per-instance, not shared (option a). The tracked
+# adapters/example/ documents the interface; the real one lives here, gitignored.
+adapters/skipper/

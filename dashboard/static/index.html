@@ -1,0 +1,1105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Evolve</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: #161b22;
+      --panel-2: #1c2230;
+      --border: #2b3240;
+      --border-soft: #21262d;
+      --txt: #c9d1d9;
+      --txt-dim: #8b949e;
+      --txt-faint: #6e7681;
+      --accent: #58a6ff;
+      --accent-dim: #1f6feb;
+      --green: #3fb950;
+      --green-bg: #15321d;
+      --amber: #d29922;
+      --amber-bg: #3a2d0c;
+      --red: #f85149;
+      --red-bg: #3a1416;
+      --purple: #bc8cff;
+      --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+      --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0; font-family: var(--sans); background: var(--bg); color: var(--txt);
+      font-size: 14px; line-height: 1.45; display: flex; flex-direction: column;
+    }
+
+    /* ---- banner ---- */
+    #banner {
+      display: none; background: var(--red-bg); color: #ffb3ae; border-bottom: 1px solid var(--red);
+      padding: 6px 16px; font-size: 12px; font-family: var(--mono);
+    }
+    #banner.show { display: block; }
+
+    /* ---- header ---- */
+    header {
+      display: flex; align-items: center; gap: 18px; padding: 10px 18px;
+      background: var(--panel); border-bottom: 1px solid var(--border); flex-wrap: wrap;
+    }
+    .brand { display: flex; align-items: baseline; gap: 8px; }
+    .brand .logo { font-weight: 700; font-size: 18px; letter-spacing: .04em; color: #fff; }
+    .brand .logo .grow { vertical-align: baseline; margin-right: 2px; }
+    .brand .logo .grow rect { fill: var(--accent); }   /* the growing bars + the E, one light blue */
+    .brand .tag { color: var(--txt-faint); font-size: 11px; font-family: var(--mono); }
+    header .spacer { flex: 1; }
+    .field { display: flex; align-items: center; gap: 6px; }
+    .field label { font-size: 11px; color: var(--txt-dim); text-transform: uppercase; letter-spacing: .05em; }
+    select, input[type=password], input[type=text], textarea, button {
+      font-family: inherit; font-size: 13px; color: var(--txt);
+      background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px;
+      padding: 6px 9px;
+    }
+    select:focus, input:focus, textarea:focus { outline: none; border-color: var(--accent-dim); }
+    #tokenInput { width: 230px; font-family: var(--mono); font-size: 11px; }
+    /* mask the token once set — display-only (stays type=text so paste works + password managers ignore it) */
+    #tokenInput.masked { -webkit-text-security: disc; text-security: disc; letter-spacing: 1px; }
+    .info { position: relative; display: inline-flex; align-items: center; justify-content: center;
+            width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--accent-dim);
+            color: var(--accent); font-size: 10px; font-style: italic; font-family: Georgia, serif;
+            cursor: help; user-select: none; flex: none; }
+    .info:hover, .info:focus { background: var(--accent-dim); color: #fff; outline: none; }
+    .info .tip { position: absolute; top: calc(100% + 8px); left: 0; width: 260px; z-index: 50;
+            background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+            padding: 9px 11px; font-size: 12px; font-style: normal; font-family: var(--font, sans-serif);
+            line-height: 1.5; color: var(--txt); text-transform: none; letter-spacing: normal;
+            box-shadow: 0 6px 20px rgba(0,0,0,.45); opacity: 0; visibility: hidden;
+            transition: opacity .12s; pointer-events: none; }
+    .info .tip b { color: var(--accent); }
+    .info:hover .tip, .info:focus .tip { opacity: 1; visibility: visible; }
+    .token-state { font-size: 11px; font-family: var(--mono); }
+    .token-state.ready { color: var(--green); }
+    .token-state.empty { color: var(--amber); }
+
+    /* ---- layout ---- */
+    #layout { flex: 1; display: flex; min-height: 0; }
+    #rail {
+      width: 340px; min-width: 280px; max-width: 42%; border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; background: #0f141b;
+    }
+    .rail-head { display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 12px; border-bottom: 1px solid var(--border-soft); }
+    .rail-head .title { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--txt-dim); }
+    .toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+    .toggle button { border: none; border-radius: 0; background: transparent; padding: 4px 10px; font-size: 12px; color: var(--txt-dim); cursor: pointer; }
+    .toggle button.on { background: var(--accent-dim); color: #fff; }
+    #runList { overflow-y: auto; flex: 1; }
+    .intake { border-bottom: 1px solid var(--border-soft); padding: 8px 12px; font-size: 12px; }
+    .intake .ihead { display: flex; align-items: center; gap: 6px; color: var(--txt-dim); text-transform: uppercase; letter-spacing: .05em; font-size: 11px; }
+    .intake .mode { font-family: var(--mono); text-transform: none; letter-spacing: 0; }
+    .intake .mode.manual { color: var(--amber); }
+    .intake .mode.auto { color: var(--txt-faint); }
+    .intake .irow { display: flex; gap: 6px; margin-top: 6px; }
+    .intake input { flex: 1; font-family: var(--mono); font-size: 12px; }
+    .intake .admitted { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
+    .intake .pill { font-family: var(--mono); font-size: 11px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; display: inline-flex; gap: 5px; align-items: center; }
+    .intake .pill button { border: none; background: none; color: var(--txt-faint); cursor: pointer; padding: 0; font-size: 12px; }
+    .intake .hint { color: var(--txt-faint); margin-top: 4px; }
+    .run {
+      padding: 10px 12px; border-bottom: 1px solid var(--border-soft); cursor: pointer;
+      display: flex; flex-direction: column; gap: 5px;
+    }
+    .run:hover { background: #141a22; }
+    .run.sel { background: #182030; border-left: 3px solid var(--accent); padding-left: 9px; }
+    .run .row1 { display: flex; align-items: center; gap: 8px; }
+    .run .rtitle { font-weight: 600; font-size: 13.5px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .run .rmeta { font-family: var(--mono); font-size: 11px; color: var(--txt-faint); display: flex; gap: 8px; flex-wrap: wrap; }
+    .run .rmeta .iid { color: var(--txt-dim); }
+    .waiting-badge {
+      display: inline-block; background: var(--amber-bg); color: var(--amber);
+      border: 1px solid #5c4708; border-radius: 5px; padding: 2px 7px; font-size: 11px; font-weight: 600;
+      align-self: flex-start; animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
+
+    .chip {
+      font-family: var(--mono); font-size: 10.5px; padding: 1px 7px; border-radius: 10px;
+      border: 1px solid var(--border); color: var(--txt-dim); text-transform: lowercase; white-space: nowrap;
+    }
+    .chip.waiting { background: var(--amber-bg); color: var(--amber); border-color: #5c4708; }
+    .chip.running, .chip.in_progress { background: #0c2d4a; color: var(--accent); border-color: #143a5e; }
+    .chip.done, .chip.merged, .chip.verified { background: var(--green-bg); color: var(--green); border-color: #1f4527; }
+    .chip.failed, .chip.error, .chip.rejected { background: var(--red-bg); color: var(--red); border-color: #5c1d1d; }
+    .chip.archived { background: #21262d; color: var(--txt-faint); }
+
+    /* ---- main panel ---- */
+    #main { flex: 1; overflow-y: auto; padding: 18px 22px; min-width: 0; }
+    .empty { color: var(--txt-faint); text-align: center; margin-top: 14vh; font-size: 15px; }
+    .empty .big { font-size: 28px; margin-bottom: 8px; }
+
+    .panel-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 4px; }
+    .panel-head h2 { margin: 0; font-size: 19px; font-weight: 600; flex: 1; }
+    .panel-sub { font-family: var(--mono); font-size: 12px; color: var(--txt-faint); margin-bottom: 16px; display: flex; gap: 12px; flex-wrap: wrap; }
+
+    .section { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 14px; }
+    .section > .shead {
+      padding: 9px 14px; font-size: 11px; text-transform: uppercase; letter-spacing: .07em;
+      color: var(--txt-dim); border-bottom: 1px solid var(--border-soft); display: flex; align-items: center; gap: 8px;
+    }
+    .section > .sbody { padding: 12px 14px; }
+
+    .gate-banner {
+      border: 1px solid var(--amber); background: linear-gradient(180deg, #2a2208, #1a1606);
+      border-radius: 8px; padding: 12px 14px; margin-bottom: 16px;
+    }
+    .gate-banner .glabel { font-weight: 700; color: var(--amber); font-size: 15px; }
+    .gate-banner .gtitle { color: var(--txt); margin-top: 2px; }
+
+    .rec { display: flex; gap: 10px; align-items: flex-start; }
+    .rec .action {
+      font-family: var(--mono); font-weight: 700; padding: 3px 10px; border-radius: 6px; font-size: 13px;
+      background: var(--panel-2); border: 1px solid var(--border); text-transform: uppercase; white-space: nowrap;
+    }
+    .rec .action.approve { color: var(--green); border-color: #1f4527; background: var(--green-bg); }
+    .rec .action.change  { color: var(--amber); border-color: #5c4708; background: var(--amber-bg); }
+    .rec .action.reject  { color: var(--red); border-color: #5c1d1d; background: var(--red-bg); }
+    .rec .why { color: var(--txt); flex: 1; }
+
+    .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; }
+    .kv dt { color: var(--txt-dim); font-family: var(--mono); font-size: 12px; }
+    .kv dd { margin: 0; }
+
+    .decision { display: flex; flex-direction: column; gap: 6px; }
+    .decision-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .decision-row .question { flex: 1; }
+    .decision-row .qrec { font-family: var(--mono); font-size: 11px; color: var(--purple); }
+    .decision-q { border-bottom: 1px solid var(--border-soft); padding: 10px 0; }
+    .decision-q .qtitle { font-weight: 600; margin-bottom: 6px; }
+    .decision-q label.opt-radio { display: flex; align-items: center; gap: 6px; padding: 3px 0; cursor: pointer; font-size: 13px; }
+    .decision-q label.opt-radio input { margin: 0; }
+    .decision-q .rec-badge { color: var(--green); font-size: 11px; font-family: var(--mono); }
+    .decision-q .qrec { font-family: var(--mono); font-size: 11px; color: var(--purple); }
+    .decision-q .qnote { width: 100%; margin-top: 6px; font-size: 12px; font-family: var(--mono); }
+    .agent-det { border-bottom: 1px solid var(--border-soft); padding: 5px 0; }
+    .agent-det summary { cursor: pointer; font-size: 13px; list-style: revert; }
+    .agent-det .agent-sum { color: var(--txt-dim); }
+    .agent-det .agent-out { margin: 6px 0 2px; padding: 8px 10px; background: #0d1117; border: 1px solid var(--border); border-radius: 5px; font-family: var(--mono); font-size: 11px; line-height: 1.5; max-height: 320px; overflow: auto; white-space: pre-wrap; }
+    ul.spec, ul.specsub { list-style: none; padding-left: 0; margin: 0; }
+    ul.specsub { padding-left: 18px; border-left: 1px solid var(--border-soft); margin-left: 4px; }
+    li.specnode { padding: 3px 0; }
+    .nodekind { font-family: var(--mono); font-size: 10px; color: var(--txt-faint); border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; margin-right: 6px; }
+
+    pre.code { background: #0a0e14; border: 1px solid var(--border-soft); border-radius: 6px;
+      padding: 10px 12px; overflow-x: auto; font-family: var(--mono); font-size: 12px; line-height: 1.5;
+      color: #b5c4d4; white-space: pre; margin: 0; max-height: 460px; }
+    details { border: 1px solid var(--border-soft); border-radius: 6px; margin-top: 8px; background: #0f141b; }
+    details > summary { cursor: pointer; padding: 7px 12px; font-family: var(--mono); font-size: 12px; color: var(--txt-dim); user-select: none; }
+    details[open] > summary { border-bottom: 1px solid var(--border-soft); }
+    details .dbody { padding: 10px 12px; }
+
+    /* diff colouring inside <pre> */
+    pre.diff .add { color: var(--green); display: block; }
+    pre.diff .del { color: var(--red); display: block; }
+    pre.diff .hunk { color: var(--purple); display: block; }
+    pre.diff .meta { color: var(--txt-faint); display: block; }
+
+    /* ---- decision controls ---- */
+    .controls textarea { width: 100%; resize: vertical; min-height: 64px; margin-bottom: 10px; font-family: var(--mono); font-size: 12.5px; }
+    .btnrow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .btn { cursor: pointer; font-weight: 600; padding: 8px 18px; border-radius: 7px; border: 1px solid var(--border); }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+    .btn.approve { background: var(--green-bg); color: var(--green); border-color: #1f4527; }
+    .btn.approve:not(:disabled):hover { background: #1c4427; }
+    .btn.change { background: var(--amber-bg); color: var(--amber); border-color: #5c4708; }
+    .btn.change:not(:disabled):hover { background: #4a3a0c; }
+    .btn.reject { background: var(--red-bg); color: var(--red); border-color: #5c1d1d; }
+    .btn.reject:not(:disabled):hover { background: #4a1d1f; }
+    .btn.ghost { background: var(--panel-2); color: var(--txt-dim); }
+    .btn.ghost:not(:disabled):hover { color: var(--txt); border-color: var(--accent-dim); }
+    .need-token { color: var(--amber); font-size: 12px; font-family: var(--mono); }
+
+    .decided-note { font-family: var(--mono); font-size: 12px; }
+    .decided-badge { font-size: 11px; color: var(--green); font-family: var(--mono); margin-top: 2px; }
+    .gate-banner.decided { background: var(--green-bg); border-color: #1f4527; }
+    .gate-banner.decided .glabel { color: var(--green); }
+    .next-step { margin-top: 8px; color: var(--accent); font-size: 13px; }
+
+    /* ---- activity tail ---- */
+    #tail { font-family: var(--mono); font-size: 12px; max-height: 420px; overflow-y: auto; }
+    .ev-group { padding: 6px 0; border-bottom: 1px solid var(--border-soft); }
+    .ev-group:last-child { border-bottom: none; }
+    .ev-agent { color: var(--accent); font-weight: 600; font-size: 11px; }
+    .ev-agent .ts { color: var(--txt-faint); font-weight: 400; margin-left: 8px; }
+    .ev-line { display: flex; gap: 8px; padding: 1px 0 1px 10px; }
+    .ev-kind { color: var(--purple); white-space: nowrap; min-width: 70px; }
+    .ev-msg { color: var(--txt); white-space: pre-wrap; word-break: break-word; }
+    .tail-empty { color: var(--txt-faint); padding: 6px 0; }
+
+    .actions-bar { margin-top: 4px; display: flex; gap: 10px; }
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-thumb { background: #283040; border-radius: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+  </style>
+</head>
+<body>
+  <div id="banner"></div>
+
+  <header>
+    <div class="brand">
+      <span class="logo"><svg class="grow" width="16.6" height="13" viewBox="0 0 16.6 13" aria-hidden="true" focusable="false"><rect x="0" y="8.67" width="2.6" height="4.33"/><rect x="4.6" y="4.33" width="2.6" height="8.67"/><rect x="9.2" y="0" width="2.6" height="13"/><rect x="9.2" y="0" width="7.4" height="2.6"/><rect x="9.2" y="5.2" width="6.4" height="2.6"/><rect x="9.2" y="10.4" width="7.4" height="2.6"/></svg>volve</span>
+      <span class="tag">operator gate review</span>
+    </div>
+    <div class="field">
+      <label for="repoSel">repo</label>
+      <select id="repoSel"><option value="">all repos</option></select>
+    </div>
+    <div class="spacer"></div>
+    <div class="field">
+      <span class="info" tabindex="0" aria-label="What is a decide-token?">i<span class="tip">Your <b>operator key</b>. It authorizes gate decisions — Approve / Change / Reject. Only someone holding it can approve a gate; the brain/loop never has it (so the engine can't approve its own work). Paste it once — it's stored only in this browser, never sent anywhere but this dashboard.</span></span>
+      <label for="tokenInput">decide token</label>
+      <input id="tokenInput" type="text" inputmode="text" placeholder="paste token" autocomplete="off" autocapitalize="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-form-type="other" name="evolve-decide-token-field" />
+      <span id="tokenState" class="token-state empty">no token</span>
+    </div>
+  </header>
+
+  <div id="layout">
+    <aside id="rail">
+      <div class="rail-head">
+        <span class="title">runs</span>
+        <span class="toggle">
+          <button id="tgActive" class="on">active</button>
+          <button id="tgArchived">archived</button>
+        </span>
+      </div>
+      <div id="intakePanel" class="intake" style="display:none"></div>
+      <div id="runList"></div>
+    </aside>
+    <main id="main"></main>
+  </div>
+
+<script>
+"use strict";
+//============================ config / state =================================
+const API = "/api/apps/evolve";
+const TOKEN_KEY = "evolve_decide_token";
+
+const state = {
+  repo: "",
+  archived: false,
+  runs: [],
+  gates: [],            // waiting gates (for badges + selected packet)
+  selectedId: null,
+  events: [],
+  lastEventId: 0,
+  evTimer: null,
+  listTimer: null,
+  visible: !document.hidden,
+  online: true,
+};
+
+//============================ utils =========================================
+function esc(s) {
+  if (s === null || s === undefined) return "";
+  return String(s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+function el(tag, attrs, ...kids) {
+  const n = document.createElement(tag);
+  if (attrs) for (const k in attrs) {
+    if (k === "class") n.className = attrs[k];
+    else if (k === "text") n.textContent = attrs[k];
+    else if (k.startsWith("on") && typeof attrs[k] === "function") n.addEventListener(k.slice(2), attrs[k]);
+    else if (attrs[k] !== null && attrs[k] !== undefined) n.setAttribute(k, attrs[k]);
+  }
+  for (const c of kids) { if (c == null) continue; n.append(c.nodeType ? c : document.createTextNode(String(c))); }
+  return n;
+}
+function shortTs(ts) {
+  if (!ts) return "";
+  try { const d = new Date(ts); if (!isNaN(d)) return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }); } catch (e) {}
+  return String(ts);
+}
+function getToken() { return localStorage.getItem(TOKEN_KEY) || ""; }
+
+//============================ fetch wrapper =================================
+async function api(path, opts) {
+  opts = opts || {};
+  try {
+    const res = await fetch(API + path, opts);
+    setOnline(true);
+    return res;
+  } catch (e) {
+    setOnline(false);
+    throw e;
+  }
+}
+async function apiJson(path) {
+  const res = await api(path);
+  if (!res.ok) throw new Error("HTTP " + res.status + " for " + path);
+  return res.json();
+}
+function authHeaders() {
+  const t = getToken();
+  return t ? { "Authorization": "Bearer " + t, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
+}
+
+function setOnline(ok) {
+  const b = document.getElementById("banner");
+  if (ok) {
+    if (!state.online) { state.online = true; b.classList.remove("show"); }
+  } else {
+    state.online = false;
+    b.textContent = "⚠ backend unreachable — retrying…";
+    b.classList.add("show");
+  }
+}
+
+//============================ token UI ======================================
+function refreshTokenUI() {
+  const t = getToken();
+  const inp = document.getElementById("tokenInput");
+  const st = document.getElementById("tokenState");
+  inp.classList.toggle("masked", !!t);   // ★ star out the token once it's set (display only)
+  if (t) {
+    inp.value = t;
+    inp.placeholder = "•••• set";
+    st.textContent = "ready to decide ✓";
+    st.className = "token-state ready";
+  } else {
+    st.textContent = "no token";
+    st.className = "token-state empty";
+  }
+}
+
+//============================ runs list ======================================
+function gateForRun(id) { return state.gates.find(g => g.instance_id === id) || null; }
+
+function renderRuns() {
+  const list = document.getElementById("runList");
+  list.textContent = "";
+  if (!state.runs.length) {
+    list.append(el("div", { class: "tail-empty", style: "padding:14px;text-align:center;" },
+      state.archived ? "no archived runs" : "no active runs"));
+    return;
+  }
+  for (const r of state.runs) {
+    const gate = gateForRun(r.instance_id);
+    const waiting = gate && gate.status === "waiting";
+    const acted = gate && gate.status !== "waiting";   // decided OR cleared (the loop is acting/done)
+    const status = (r.status || "").toLowerCase();
+    const row = el("div", { class: "run" + (r.instance_id === state.selectedId ? " sel" : ""),
+                            onclick: () => selectRun(r.instance_id) });
+    row.append(el("div", { class: "row1" },
+      el("span", { class: "rtitle", text: r.title || r.instance_id }),
+      el("span", { class: "chip " + esc(runChip(r).cls), text: runChip(r).text }),
+    ));
+    if (waiting) row.append(el("span", { class: "waiting-badge", text: "⚠ waiting on you" }));
+    else if (acted) row.append(el("span", { class: "decided-badge", text: "✓ " + pastTense(gate.decision) }));
+    const meta = el("div", { class: "rmeta" });
+    meta.append(el("span", { class: "iid", text: r.instance_id }));
+    if (r.phase) meta.append(el("span", { text: "phase " + r.phase }));
+    if (r.current_agent) meta.append(el("span", { text: "@" + r.current_agent }));
+    row.append(meta);
+    list.append(row);
+  }
+}
+
+async function loadRuns() {
+  const q = new URLSearchParams();
+  q.set("archived", state.archived ? "1" : "0");
+  if (state.repo) q.set("repo", state.repo);
+  const data = await apiJson("/runs?" + q.toString());
+  state.runs = data.runs || [];
+  renderRuns();
+}
+
+async function loadGates() {
+  // fetch ALL gates — no status filter (so a DECIDED gate stays on screen) AND no repo filter:
+  // a gate is matched to a run by instance_id, and the runs are already repo-filtered, so filtering
+  // gates by repo only hid badges for gates whose repo wasn't tagged.
+  const data = await apiJson("/gates");
+  state.gates = data.gates || [];
+}
+
+//============================ repos ==========================================
+async function loadRepos() {
+  let repos = [];
+  try { repos = await apiJson("/repos"); } catch (e) { return; }
+  state.repos = repos || [];
+  const sel = document.getElementById("repoSel");
+  const cur = state.repo;
+  sel.textContent = "";
+  sel.append(el("option", { value: "", text: "all repos" }));
+  for (const r of state.repos) {
+    if (!r || !r.name) continue;
+    sel.append(el("option", { value: r.name, text: r.name }));
+  }
+  sel.value = cur;
+}
+
+// ----------------------------- issue intake --------------------------------
+async function renderIntake() {
+  const panel = document.getElementById("intakePanel");
+  if (!panel) return;
+  panel.textContent = "";
+  // only meaningful for ONE selected repo (admit is per-repo)
+  if (!state.repo) { panel.style.display = "none"; return; }
+  panel.style.display = "block";
+  const entry = (state.repos || []).find(r => r.name === state.repo) || {};
+  const mode = entry.intake || "auto";
+  const head = el("div", { class: "ihead" }, "issue intake: ",
+    el("span", { class: "mode " + esc(mode), text: mode }));
+  panel.append(head);
+  if (mode !== "manual") {
+    panel.append(el("div", { class: "hint", text: "auto — every open issue is processed. Set intake: manual on this repo (evolve.repos.yaml) to admit issues one by one." }));
+    return;
+  }
+  panel.append(el("div", { class: "hint", text: "manual — only admitted issues are processed. Vet the issue on GitHub first, then admit its #." }));
+  const row = el("div", { class: "irow" });
+  const inp = el("input", { type: "text", inputmode: "numeric", placeholder: "issue #", id: "admitNum" });
+  const btn = el("button", { class: "btn ghost", text: "Admit",
+    onclick: () => admitIssue(state.repo, inp.value) });
+  inp.addEventListener("keydown", (e) => { if (e.key === "Enter") admitIssue(state.repo, inp.value); });
+  row.append(inp, btn);
+  panel.append(row);
+  if (!getToken()) panel.append(el("div", { class: "need-token", text: "paste your decide-token above to admit." }));
+  // current allowlist
+  let admitted = [];
+  try { admitted = (await apiJson("/admitted?repo=" + encodeURIComponent(state.repo))).admitted || []; } catch (e) {}
+  const wrap = el("div", { class: "admitted" });
+  if (!admitted.length) wrap.append(el("span", { class: "hint", text: "none admitted yet" }));
+  for (const n of admitted) {
+    wrap.append(el("span", { class: "pill" }, "#" + n,
+      el("button", { text: "✕", title: "revoke", onclick: () => revokeIssue(state.repo, n) })));
+  }
+  panel.append(wrap);
+}
+
+async function admitIssue(repo, number) {
+  if (!getToken()) { alert("Set your decide-token first."); return; }
+  number = String(number || "").trim();
+  if (!/^\d+$/.test(number)) { alert("Enter a numeric issue #."); return; }
+  try {
+    const res = await api("/admit", { method: "POST", headers: authHeaders(),
+      body: JSON.stringify({ repo, number: parseInt(number, 10) }) });
+    if (res.status === 401 || res.status === 403) { alert("Admit rejected — check your decide-token."); return; }
+    if (!res.ok) { alert("Admit failed: HTTP " + res.status); return; }
+    renderIntake();
+  } catch (e) { alert("Network error — backend unreachable."); }
+}
+
+async function revokeIssue(repo, number) {
+  if (!getToken()) { alert("Set your decide-token first."); return; }
+  try {
+    const res = await api("/admit/revoke", { method: "POST", headers: authHeaders(),
+      body: JSON.stringify({ repo, number }) });
+    if (!res.ok) { alert("Revoke failed: HTTP " + res.status); return; }
+    renderIntake();
+  } catch (e) { alert("Network error — backend unreachable."); }
+}
+
+//============================ selection ======================================
+function selectRun(id) {
+  if (state.selectedId === id) return;
+  state.selectedId = id;
+  state.decisionAnswers = {};
+  state.events = [];
+  state.lastEventId = 0;
+  renderRuns();
+  renderMain();
+  restartEventPolling();
+}
+
+//============================ main panel =====================================
+function renderMain() {
+  const main = document.getElementById("main");
+  main.textContent = "";
+  state.mainSig = currentMainSig();
+  const r = state.runs.find(x => x.instance_id === state.selectedId);
+  if (!r) {
+    main.append(el("div", { class: "empty" },
+      el("div", { class: "big", text: "◇" }),
+      el("div", { text: "Select a run from the left to review it." })));
+    return;
+  }
+  // header
+  const head = el("div", { class: "panel-head" });
+  head.append(el("h2", { text: r.title || r.instance_id }));
+  const _ch = runChip(r);
+  head.append(el("span", { class: "chip " + esc(_ch.cls), text: _ch.text }));
+  if (r.archived) head.append(el("span", { class: "chip archived", text: "archived" }));
+  else head.append(el("button", { class: "btn ghost", text: "Archive", onclick: () => doArchive(r.instance_id) }));
+  main.append(head);
+
+  const sub = el("div", { class: "panel-sub" });
+  sub.append(el("span", { text: r.instance_id }));
+  if (r.repo) sub.append(el("span", { text: r.repo }));
+  if (r.source) sub.append(el("span", { text: "src: " + r.source }));
+  if (r.phase) sub.append(el("span", { text: "phase: " + r.phase }));
+  if (r.current_node) sub.append(el("span", { text: "node: " + r.current_node }));
+  if (r.current_agent) sub.append(el("span", { text: "@" + r.current_agent }));
+  if ((r.phase || "").toLowerCase() === "done") sub.append(el("span", { style: "color:var(--green);font-weight:600;", text: "✓ verified · GitHub issue closed" }));
+  main.append(sub);
+
+  const gate = gateForRun(r.instance_id);
+  if (gate) main.append(renderGate(gate));
+
+  // activity tail section
+  const tailSec = el("section", { class: "section" });
+  tailSec.append(el("div", { class: "shead" }, "live activity",
+    el("span", { style: "flex:1" }), el("span", { class: "tag", id: "evCount", text: "" })));
+  const tailBody = el("div", { class: "sbody" });
+  tailBody.append(el("div", { id: "tail" }));
+  tailSec.append(tailBody);
+  main.append(tailSec);
+
+  // reverify / archive actions
+  const bar = el("div", { class: "actions-bar" });
+  const st = (r.status || "").toLowerCase();
+  if (st === "done" || st === "verified" || r.phase === "verify" || st === "merged") {
+    bar.append(el("button", { class: "btn ghost", text: "↻ Reverify", onclick: () => doReverify(r.instance_id) }));
+  }
+  if (bar.children.length) main.append(bar);
+
+  renderTail();
+}
+
+//---------------------------- gate review ----------------------------------
+const GATE_LABELS = {
+  gate1: "Gate 1 · intent",
+  gate2: "Gate 2 · result",
+  gate3: "Gate 3 · verify",
+};
+function gateLabel(g) {
+  const key = (g || "").toLowerCase();
+  return GATE_LABELS[key] || ("Gate · " + (g || "?"));
+}
+// past tense for a RECORDED decision — reads as a done state ("APPROVED"), not an instruction ("APPROVE")
+function pastTense(d) {
+  d = (d || "").toLowerCase();
+  return ({ approve: "approved", change: "change requested", reject: "rejected" })[d] || d || "decided";
+}
+// the chip to show for a run: a terminal phase (done/rejected) wins over the leftover status ("merged")
+function runChip(r) {
+  const ph = (r.phase || "").toLowerCase(), st = (r.status || "").toLowerCase();
+  if (ph === "done") return { cls: "verified", text: "verified ✓" };
+  if (ph === "rejected" || st === "rejected") return { cls: "rejected", text: "rejected" };
+  if (ph === "parked") return { cls: "archived", text: "parked" };
+  return { cls: st, text: st || "—" };
+}
+
+function renderGate(gate) {
+  const wrap = el("div");
+  // banner
+  const waiting = gate.status === "waiting";   // anything else (decided / cleared / resolved) = acted
+  const banner = el("div", { class: "gate-banner" + (waiting ? "" : " decided") });
+  banner.append(el("div", { class: "glabel", text: waiting
+    ? "⚠ " + gateLabel(gate.gate) + " — waiting on you"
+    : "✓ " + gateLabel(gate.gate) + " — " + pastTense(gate.decision).toUpperCase() }));
+  if (gate.title) banner.append(el("div", { class: "gtitle", text: gate.title }));
+  wrap.append(banner);
+
+  // Lead recommendation
+  if (gate.rec_action || gate.rec_why) {
+    const sec = el("section", { class: "section" });
+    sec.append(el("div", { class: "shead" }, "lead recommendation"));
+    const body = el("div", { class: "sbody" });
+    const rec = el("div", { class: "rec" });
+    if (gate.rec_action)
+      rec.append(el("span", { class: "action " + esc(gate.rec_action.toLowerCase()), text: gate.rec_action }));
+    rec.append(el("span", { class: "why", text: gate.rec_why || "" }));
+    body.append(rec);
+    sec.append(body);
+    wrap.append(sec);
+  }
+
+  // packet sections
+  const p = (gate.packet && typeof gate.packet === "object") ? gate.packet : {};
+  const known = new Set(["work_item", "recommendation", "decisions_needed", "spec_tree",
+                         "code_plan", "agents", "validation", "diff", "gate", "title", "repo"]);
+
+  if (p.work_item) wrap.append(sectionWorkItem(p.work_item));
+  if (Array.isArray(p.decisions_needed) && p.decisions_needed.length) wrap.append(sectionDecisions(p.decisions_needed));
+  if (p.spec_tree) wrap.append(sectionSpecTree(p.spec_tree));
+  if (p.code_plan) wrap.append(sectionCodePlan(p.code_plan));
+  if (p.agents) wrap.append(sectionAgents(p.agents));
+  if (p.validation) wrap.append(sectionValidation(p.validation));
+  if (p.diff) wrap.append(sectionDiff(p.diff));
+
+  // recommendation object (if richer than rec_action/why)
+  if (p.recommendation && typeof p.recommendation === "object") {
+    const r = p.recommendation;
+    if (!gate.rec_action && !gate.rec_why && (r.action || r.why || r.rationale)) {
+      const sec = el("section", { class: "section" });
+      sec.append(el("div", { class: "shead" }, "recommendation"));
+      const body = el("div", { class: "sbody" });
+      const rec = el("div", { class: "rec" });
+      if (r.action) rec.append(el("span", { class: "action " + esc(String(r.action).toLowerCase()), text: r.action }));
+      rec.append(el("span", { class: "why", text: r.why || r.rationale || "" }));
+      body.append(rec);
+      sec.append(body);
+      wrap.append(sec);
+    }
+  }
+
+  // anything unknown → pretty JSON collapsible
+  const extra = {};
+  for (const k in p) if (!known.has(k)) extra[k] = p[k];
+  if (Object.keys(extra).length) wrap.append(collapsibleJson("other packet fields", extra));
+
+  // decision controls (or decided state)
+  if (gate.status === "waiting") wrap.append(decisionControls(gate));
+  else wrap.append(decidedState(gate));
+
+  return wrap;
+}
+
+function sectionWorkItem(wi) {
+  const sec = el("section", { class: "section" });
+  sec.append(el("div", { class: "shead" }, "work item"));
+  const body = el("div", { class: "sbody" });
+  if (typeof wi !== "object") { body.append(el("div", { text: String(wi) })); sec.append(body); return sec; }
+  const kv = el("dl", { class: "kv" });
+  const order = ["id", "number", "title", "source", "repo", "kind", "type", "author", "priority", "score", "state", "url"];
+  const seen = new Set();
+  const push = (k, v) => {
+    if (v === null || v === undefined || v === "") return;
+    seen.add(k);
+    kv.append(el("dt", { text: k }));
+    if (typeof v === "object") kv.append(el("dd", {}, collapsibleJson(k, v)));
+    else kv.append(el("dd", { text: String(v) }));
+  };
+  for (const k of order) if (k in wi) push(k, wi[k]);
+  for (const k in wi) if (!seen.has(k) && k !== "body" && k !== "description") push(k, wi[k]);
+  body.append(kv);
+  const desc = wi.body || wi.description;
+  if (desc) { body.append(el("div", { style: "margin-top:10px;white-space:pre-wrap;color:var(--txt);", text: String(desc) })); }
+  sec.append(body);
+  return sec;
+}
+
+function sectionDecisions(list) {
+  state.currentDecisions = list;
+  if (!state.decisionAnswers) state.decisionAnswers = {};
+  const optLabel = (o) => (typeof o === "object" ? (o.label || o.value || JSON.stringify(o)) : String(o));
+  const sec = el("section", { class: "section" });
+  sec.append(el("div", { class: "shead" }, "decisions needed (" + list.length + ") — pick one + add a note each"));
+  const body = el("div", { class: "sbody decision" });
+  list.forEach((d, i) => {
+    const wrap = el("div", { class: "decision-q" });
+    const q = (typeof d === "object") ? (d.question || d.q || d.prompt || d.title || JSON.stringify(d)) : String(d);
+    wrap.append(el("div", { class: "qtitle", text: (i + 1) + ". " + q }));
+    const opts = (typeof d === "object" && Array.isArray(d.options)) ? d.options : [];
+    const recStr = (typeof d === "object" && typeof (d.recommendation || d.rec) === "string") ? (d.recommendation || d.rec) : "";
+    // pre-select the recommended option (first whose leading token appears in the recommendation)
+    // pre-select by matching the rec's LEADING token to an option's leading token (the rec text often
+    // mentions other options too, so a naive "contains" wrongly matched the first one). Split on
+    // whitespace/paren/em-dash only — NOT the hyphen inside tokens like "w-64".
+    const firstTok = (s) => String(s).trim().toLowerCase().split(/[\s(—]/)[0];
+    const recTok = firstTok(recStr);
+    const recIdx = recTok ? opts.findIndex(o => firstTok(optLabel(o)) === recTok) : -1;
+    if (state.decisionAnswers[i] === undefined) state.decisionAnswers[i] = { choice: recIdx, note: "" };
+    opts.forEach((o, oi) => {
+      const lab = el("label", { class: "opt-radio" });
+      const radio = el("input", { type: "radio", name: "dq" + i, value: String(oi),
+        onchange: () => { state.decisionAnswers[i].choice = oi; } });
+      if (state.decisionAnswers[i].choice === oi) radio.checked = true;
+      lab.append(radio, el("span", { text: " " + optLabel(o) }));
+      if (oi === recIdx) lab.append(el("span", { class: "rec-badge", text: " ★ recommended" }));
+      wrap.append(lab);
+    });
+    if (!opts.length && recStr) wrap.append(el("div", { class: "qrec", text: "rec: " + recStr }));
+    wrap.append(el("input", { type: "text", class: "qnote", placeholder: "note on this decision (optional)…",
+      value: state.decisionAnswers[i].note || "",
+      oninput: (e) => { state.decisionAnswers[i].note = e.target.value; } }));
+    body.append(wrap);
+  });
+  sec.append(body);
+  return sec;
+}
+
+function sectionSpecTree(tree) {
+  const sec = el("section", { class: "section" });
+  sec.append(el("div", { class: "shead" }, "spec tree"));
+  const body = el("div", { class: "sbody" });
+  body.append(renderSpecNode(tree));
+  sec.append(body);
+  return sec;
+}
+function renderSpecNode(node) {
+  // node may be array or object {kind,title,children:[]} — render defensively
+  if (Array.isArray(node)) {
+    const ul = el("ul", { class: "spec" });
+    node.forEach(n => ul.append(renderSpecLi(n)));
+    return ul;
+  }
+  if (node && typeof node === "object") {
+    const ul = el("ul", { class: "spec" });
+    ul.append(renderSpecLi(node));
+    return ul;
+  }
+  return el("div", { text: String(node) });
+}
+function renderSpecLi(n) {
+  const li = el("li", { class: "specnode" });
+  if (n && typeof n === "object") {
+    const kind = n.kind || n.type || (n.capability ? "cap" : n.feature ? "feat" : n.spec ? "spec" : "");
+    if (kind) li.append(el("span", { class: "nodekind", text: kind }));
+    const label = n.title || n.name || n.id || n.label || n.capability || n.feature || n.spec || "";
+    li.append(document.createTextNode(label || JSON.stringify(n)));
+    const kids = n.children || n.features || n.specs || n.nodes;
+    if (Array.isArray(kids) && kids.length) {
+      const sub = el("ul", { class: "specsub" });
+      kids.forEach(c => sub.append(renderSpecLi(c)));
+      li.append(sub);
+    }
+  } else {
+    li.append(document.createTextNode(String(n)));
+  }
+  return li;
+}
+
+function sectionCodePlan(cp) {
+  const sec = el("section", { class: "section" });
+  sec.append(el("div", { class: "shead" }, "code plan"));
+  const body = el("div", { class: "sbody" });
+  if (typeof cp === "string") {
+    body.append(el("div", { style: "white-space:pre-wrap;", text: cp }));
+  } else if (Array.isArray(cp)) {
+    const ul = el("ul", { class: "spec" });
+    cp.forEach(item => {
+      const li = el("li", { class: "specnode" });
+      if (typeof item === "object") {
+        const action = item.action || item.op || "";
+        const path = item.path || item.file || item.target || "";
+        if (action) li.append(el("span", { class: "nodekind", text: action }));
+        li.append(document.createTextNode(path || JSON.stringify(item)));
+        if (item.note || item.notes || item.reason)
+          li.append(el("div", { style: "color:var(--txt-dim);font-size:12px;padding-left:6px;", text: item.note || item.notes || item.reason }));
+      } else li.append(document.createTextNode(String(item)));
+      ul.append(li);
+    });
+    body.append(ul);
+  } else if (cp && typeof cp === "object") {
+    // maybe {files:[...], summary:""}
+    if (cp.summary) body.append(el("div", { style: "white-space:pre-wrap;margin-bottom:8px;", text: cp.summary }));
+    const files = cp.files || cp.changes;
+    if (files) body.append(sectionCodePlan(files).querySelector(".sbody").firstChild || el("div"));
+    else body.append(collapsibleJson("code_plan", cp));
+  }
+  sec.append(body);
+  return sec;
+}
+
+function sectionAgents(agents) {
+  const sec = el("section", { class: "section" });
+  const arr = Array.isArray(agents) ? agents
+    : (agents && typeof agents === "object" ? Object.entries(agents).map(([k, v]) => ({ key: k, output: v })) : []);
+  sec.append(el("div", { class: "shead" }, "agents (" + arr.length + ") — click to expand each"));
+  const body = el("div", { class: "sbody" });
+  if (!arr.length) { body.append(collapsibleJson("agents", agents)); sec.append(body); return sec; }
+  arr.forEach(a => {
+    if (a == null || typeof a !== "object") { body.append(el("div", { class: "agent-det", text: String(a) })); return; }
+    const name = a.label || a.key || a.name || a.agent || a.role || "agent";
+    const out = (a.output !== undefined) ? a.output : a;
+    const sumStr = (out && typeof out === "object")
+      ? (out.summary || out.verdict || out.disposition || out.decision || out.result || out.recommendation || "")
+      : (typeof out === "string" ? out : "");
+    const det = el("details", { class: "agent-det" });
+    const sm = el("summary");
+    sm.append(el("span", { class: "nodekind", text: "agent" }));
+    sm.append(el("b", { text: " " + name }));
+    if (sumStr) sm.append(el("span", { class: "agent-sum", text: " — " + String(sumStr) }));
+    det.append(sm);
+    const pre = el("pre", { class: "agent-out" });
+    pre.textContent = (typeof out === "object") ? JSON.stringify(out, null, 2) : String(out);
+    det.append(pre);
+    body.append(det);
+  });
+  sec.append(body);
+  return sec;
+}
+
+function sectionValidation(v) {
+  const sec = el("section", { class: "section" });
+  sec.append(el("div", { class: "shead" }, "validation"));
+  const body = el("div", { class: "sbody" });
+  if (typeof v === "string") body.append(el("div", { style: "white-space:pre-wrap;", text: v }));
+  else if (v && typeof v === "object") {
+    const kv = el("dl", { class: "kv" });
+    for (const k in v) {
+      const val = v[k];
+      kv.append(el("dt", { text: k }));
+      if (typeof val === "object" && val !== null) kv.append(el("dd", {}, collapsibleJson(k, val)));
+      else kv.append(el("dd", { text: String(val) }));
+    }
+    body.append(kv);
+  } else body.append(el("div", { text: String(v) }));
+  sec.append(body);
+  return sec;
+}
+
+function sectionDiff(diff) {
+  const sec = el("section", { class: "section" });
+  sec.append(el("div", { class: "shead" }, "diff"));
+  const body = el("div", { class: "sbody" });
+  const text = typeof diff === "string" ? diff : JSON.stringify(diff, null, 2);
+  const det = el("details", { open: typeof diff === "string" && text.split("\n").length <= 80 ? "" : null });
+  det.append(el("summary", { text: "unified diff (" + text.split("\n").length + " lines)" }));
+  const dbody = el("div", { class: "dbody" });
+  const pre = el("pre", { class: "code diff" });
+  // colour lines without innerHTML injection
+  for (const line of text.split("\n")) {
+    let cls = "meta";
+    if (line.startsWith("+") && !line.startsWith("+++")) cls = "add";
+    else if (line.startsWith("-") && !line.startsWith("---")) cls = "del";
+    else if (line.startsWith("@@")) cls = "hunk";
+    else if (line.startsWith("diff ") || line.startsWith("index ") || line.startsWith("+++") || line.startsWith("---")) cls = "meta";
+    else cls = "";
+    const span = el("span", { class: cls || null });
+    span.textContent = line + "\n";
+    pre.append(span);
+  }
+  dbody.append(pre);
+  det.append(dbody);
+  body.append(det);
+  sec.append(body);
+  return sec;
+}
+
+function collapsibleJson(label, obj) {
+  const det = el("details");
+  det.append(el("summary", { text: label + " { … }" }));
+  const dbody = el("div", { class: "dbody" });
+  const pre = el("pre", { class: "code" });
+  try { pre.textContent = JSON.stringify(obj, null, 2); }
+  catch (e) { pre.textContent = String(obj); }
+  dbody.append(pre);
+  det.append(dbody);
+  return det;
+}
+
+//---------------------------- decision controls ----------------------------
+function decisionControls(gate) {
+  const sec = el("section", { class: "section" });
+  sec.append(el("div", { class: "shead" }, gate.gate === "gate3" ? "your verification" : "your decision"));
+  const body = el("div", { class: "sbody controls" });
+  const ta = el("textarea", { id: "decisionNote", placeholder: "note (optional — required context for a Change request)" });
+  body.append(ta);
+
+  const hasToken = !!getToken();
+  const verify = (gate.gate || "").toLowerCase() === "gate3";
+  const row = el("div", { class: "btnrow" });
+  const approveLabel = verify ? "✓ Verify" : "✓ Approve";
+  const mk = (cls, label, decision) =>
+    el("button", { class: "btn " + cls, text: label, disabled: hasToken ? null : "disabled",
+      onclick: () => decide(gate.instance_id, decision) });
+  row.append(mk("approve", approveLabel, "approve"));
+  row.append(mk("change", "✎ Change", "change"));
+  row.append(mk("reject", "✕ Reject", "reject"));
+  body.append(row);
+  if (!hasToken) body.append(el("div", { class: "need-token", style: "margin-top:8px;", text: "paste your decide-token above to enable decisions." }));
+  sec.append(body);
+  return sec;
+}
+
+function nextStepText(gate) {
+  const d = (gate.decision || "").toLowerCase(), g = (gate.gate || "").toLowerCase();
+  const s = (gate.status || "").toLowerCase();
+  if (s === "cleared" || s === "resolved")
+    return "→ The loop has picked this up and is acting on it now — watch the live activity below.";
+  if (d === "approve") {
+    if (g === "gate1") return "→ Next: the loop picks this up on its next pass and runs the BUILD segment (implement → validate on the test host → Gate 2).";
+    if (g === "gate2") return "→ Next: the loop merges to the staging branch and deploys to UAT for your Gate-3 verification.";
+    if (g === "gate3") return "→ Verified — the loop will close the GitHub issue.";
+    return "→ Next: the loop acts on your approval on its next pass.";
+  }
+  if (d === "change") return "→ Next: the loop re-runs the item with your requested changes on its next pass.";
+  if (d === "reject") return "→ Next: the loop tears this item down (rejected).";
+  return "→ Waiting for the loop's next pass.";
+}
+function decidedState(gate) {
+  const sec = el("section", { class: "section" });
+  sec.append(el("div", { class: "shead" }, "your decision — recorded ✓"));
+  const body = el("div", { class: "sbody decided-note" });
+  const rec = el("div", { class: "rec" });
+  rec.append(el("span", { class: "action " + esc((gate.decision || "").toLowerCase()), text: pastTense(gate.decision) }));
+  rec.append(el("span", { class: "why", text: gate.note || "" }));
+  body.append(rec);
+  body.append(el("div", { class: "next-step", text: nextStepText(gate) }));
+  if (gate.decided_at) body.append(el("div", { style: "color:var(--txt-faint);margin-top:6px;", text: "decided " + shortTs(gate.decided_at) }));
+  sec.append(body);
+  return sec;
+}
+
+async function decide(id, decision) {
+  if (!getToken()) { alert("Set your decide-token first."); return; }
+  let note = (document.getElementById("decisionNote") || {}).value || "";
+  // fold the per-decision answers (selected option + per-question note) into the decision note
+  const ans = state.decisionAnswers || {}, ds = state.currentDecisions || [];
+  const lines = [];
+  ds.forEach((d, i) => {
+    const a = ans[i]; if (!a) return;
+    const opts = (d && Array.isArray(d.options)) ? d.options : [];
+    const ol = (o) => (typeof o === "object" ? (o.label || o.value || "") : String(o));
+    const choice = (a.choice != null && a.choice >= 0 && opts[a.choice] != null) ? ol(opts[a.choice]) : "(no selection)";
+    lines.push((i + 1) + ". " + choice + (a.note ? " — " + a.note : ""));
+  });
+  if (lines.length) note = "Decisions:\n" + lines.join("\n") + (note.trim() ? "\n\n" + note.trim() : "");
+  try {
+    const res = await api("/gates/" + encodeURIComponent(id) + "/decision", {
+      method: "POST", headers: authHeaders(),
+      body: JSON.stringify({ decision, note }),
+    });
+    if (res.status === 401 || res.status === 403) {
+      const j = await res.json().catch(() => ({}));
+      alert("Decision rejected (" + res.status + "): " + (j.detail || "auth failed — check your decide-token"));
+      return;
+    }
+    if (!res.ok) { alert("Decision failed: HTTP " + res.status); return; }
+    await refreshAll();
+    renderMain();
+  } catch (e) {
+    alert("Network error sending decision — backend unreachable.");
+  }
+}
+
+async function doArchive(id) {
+  try {
+    const res = await api("/runs/" + encodeURIComponent(id) + "/archive", { method: "POST", headers: authHeaders() });
+    if (!res.ok) { const j = await res.json().catch(() => ({})); alert("Archive failed (" + res.status + "): " + (j.detail || "")); return; }
+    if (state.selectedId === id) { state.selectedId = null; }
+    await refreshAll(); renderMain();
+  } catch (e) { alert("Network error — backend unreachable."); }
+}
+async function doReverify(id) {
+  try {
+    const res = await api("/runs/" + encodeURIComponent(id) + "/reverify", { method: "POST", headers: authHeaders() });
+    if (!res.ok) { const j = await res.json().catch(() => ({})); alert("Reverify failed (" + res.status + "): " + (j.detail || "")); return; }
+    await refreshAll(); renderMain();
+  } catch (e) { alert("Network error — backend unreachable."); }
+}
+
+//---------------------------- activity tail --------------------------------
+function renderTail() {
+  const tail = document.getElementById("tail");
+  if (!tail) return;
+  tail.textContent = "";
+  if (!state.events.length) { tail.append(el("div", { class: "tail-empty", text: "no activity yet…" })); return; }
+  // group consecutive same-agent lines
+  let group = null, lastAgent = null;
+  for (const ev of state.events) {
+    if (ev.agent !== lastAgent || !group) {
+      group = el("div", { class: "ev-group" });
+      group.append(el("div", { class: "ev-agent" },
+        el("span", { text: ev.agent || "system" }),
+        el("span", { class: "ts", text: shortTs(ev.ts) })));
+      tail.append(group);
+      lastAgent = ev.agent;
+    }
+    const line = el("div", { class: "ev-line" });
+    if (ev.kind) line.append(el("span", { class: "ev-kind", text: ev.kind }));
+    line.append(el("span", { class: "ev-msg", text: ev.message || "" }));
+    group.append(line);
+  }
+  const cnt = document.getElementById("evCount");
+  if (cnt) cnt.textContent = state.events.length + " events";
+  // autoscroll if near bottom
+  tail.scrollTop = tail.scrollHeight;
+}
+
+async function pollEvents() {
+  if (!state.selectedId) return;
+  const id = state.selectedId;
+  try {
+    const data = await apiJson("/runs/" + encodeURIComponent(id) + "/events?since=" + state.lastEventId);
+    if (state.selectedId !== id) return; // selection changed mid-flight
+    const evs = data.events || [];
+    if (evs.length) {
+      state.events.push(...evs);
+      state.lastEventId = evs[evs.length - 1].id;
+      renderTail();
+    }
+  } catch (e) { /* banner handled by api() */ }
+}
+
+//============================ polling loop ==================================
+function currentMainSig() {
+  const id = state.selectedId;
+  if (!id) return "";
+  const r = state.runs.find(x => x.instance_id === id);
+  const g = state.gates.find(x => x.instance_id === id);
+  return [id, g && g.gate, g && g.status, g && g.decision, r && r.phase, r && r.status].join("|");
+}
+async function refreshAll() {
+  try {
+    await loadGates();
+    await loadRuns();
+    // push-like auto-update: re-render the open packet only when its gate/phase actually changes
+    // (so a parked gate appears with no manual refresh — and it never wipes in-progress input)
+    if (state.selectedId && currentMainSig() !== state.mainSig) renderMain();
+  } catch (e) { /* banner handled by api() */ }
+}
+
+function restartEventPolling() {
+  if (state.evTimer) { clearInterval(state.evTimer); state.evTimer = null; }
+  pollEvents();
+  state.evTimer = setInterval(() => { if (state.visible) pollEvents(); }, 2000);
+}
+function startListPolling() {
+  if (state.listTimer) clearInterval(state.listTimer);
+  state.listTimer = setInterval(() => { if (state.visible) refreshAll(); }, 3000);
+}
+
+document.addEventListener("visibilitychange", () => {
+  state.visible = !document.hidden;
+  if (state.visible) { refreshAll(); pollEvents(); }  // immediate catch-up
+});
+
+//============================ wiring ========================================
+function wireHeader() {
+  document.getElementById("repoSel").addEventListener("change", (e) => {
+    state.repo = e.target.value;
+    state.selectedId = null;
+    renderIntake();
+    refreshAll().then(renderMain);
+  });
+  document.querySelectorAll(".toggle button").forEach(() => {});
+  document.getElementById("tgActive").addEventListener("click", () => setArchived(false));
+  document.getElementById("tgArchived").addEventListener("click", () => setArchived(true));
+
+  const inp = document.getElementById("tokenInput");
+  const commit = () => {
+    const v = inp.value.trim();
+    if (v) localStorage.setItem(TOKEN_KEY, v);
+    else localStorage.removeItem(TOKEN_KEY);
+    refreshTokenUI();
+    renderMain(); // re-enable/disable decision buttons
+  };
+  inp.addEventListener("change", commit);
+  inp.addEventListener("blur", commit);
+  inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { commit(); inp.blur(); } });
+  inp.addEventListener("input", commit);                       // typed/cut — commit live
+  inp.addEventListener("paste", () => setTimeout(commit, 0));  // paste lands async — commit after
+}
+function setArchived(archived) {
+  state.archived = archived;
+  document.getElementById("tgActive").classList.toggle("on", !archived);
+  document.getElementById("tgArchived").classList.toggle("on", archived);
+  state.selectedId = null;
+  refreshAll().then(renderMain);
+}
+
+//============================ boot ==========================================
+async function boot() {
+  refreshTokenUI();
+  wireHeader();
+  await loadRepos();
+  renderIntake();
+  await refreshAll();
+  renderMain();
+  startListPolling();
+}
+boot();
+</script>
+</body>
+</html>

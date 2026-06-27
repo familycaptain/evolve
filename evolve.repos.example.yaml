@@ -1,0 +1,51 @@
+# Evolve repo registry — the COLLECTION of repos this instance watches and manages.
+#
+# Copy this to `evolve.repos.yaml` (gitignored, per-instance) and list YOUR repos.
+# This is what makes one Evolve instance manage many repos: intake scans every registered repo each pass, the dashboard's repo-switcher lists them, and each entry
+# carries its OWN per-repo config (where it lives, its branches, where its specs are).
+#
+# Per-entry schema:
+#   name:         owner/repo on GitHub — the issue source + push target  (REQUIRED)
+#   type:         platform | app | model | companion                      (REQUIRED)
+#                   platform  — the core repo; worked in place
+#                   app       — lives in its OWN repo; DEPLOYS by cloning into a platform's clone_path
+#                   model     — like app; clones into models/<id>
+#                   model     — clones into models/<id>;   deploy = the adapter + a restart
+#                   companion — its own service/repo (voice, mobile, …); Evolve specs + drafts,
+#                               you build/test it (no validation harness yet)
+#   path:         local working path the engine checks out                (REQUIRED)
+#   host:         (app/model) owner/repo of the PLATFORM this clones INTO — REQUIRED when >1 platform
+#                 is registered; optional (defaults to the lone platform) when there's exactly one
+#   clone_path:   path INSIDE the host it deploys into (apps/<id> / models/<id>); omit for platform/companion
+#   branch_model: <staging>-><world>  (default: release->main)
+#   spec_roots:   globs where THIS repo's specs live (default: ["specs"])
+#   token_env:    env var holding this repo's token (default GITHUB_TOKEN; override for another account)
+#   intake:       auto (default) | manual — 'manual' = process ONLY issues a human admits in the
+#                 dashboard (vet-then-opt-in; recommended for public/untrusted repos)
+
+- name: your-org/your-platform
+  type: platform
+  path: ~/repos/your-platform
+  branch_model: release->main
+  spec_roots: ["apps/*/specs", "specs/platform"]
+
+- name: your-org/your-app-foo
+  type: app
+  path: ~/repos/your-app-foo
+  host: your-org/your-platform     # ← the platform repo this app deploys INTO (clone_path is relative to it)
+  clone_path: apps/foo
+  branch_model: release->main
+  spec_roots: ["specs"]
+
+# - name: another-org/their-app          # a repo in a DIFFERENT GitHub account
+#   type: app
+#   path: ~/repos/their-app
+#   host: your-org/your-platform   # different apps can name DIFFERENT host platforms
+#   clone_path: apps/their-app
+#   intake: manual              # public/untrusted repo — admit issues by hand in the dashboard
+#   token_env: THEIR_GITHUB_TOKEN         # its own token, set in .env
+
+# - name: your-org/your-voice-client      # a companion service — specced + drafted, you build/test
+#   type: companion
+#   path: ~/repos/your-voice-client
+#   branch_model: release->main
