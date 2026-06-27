@@ -257,3 +257,26 @@ means these thinking domains.** If you are working on or testing a thinking-doma
 **only** the specific domain you need for the test — `data_layer.thinking_domains.update_domain('<name>',
 enabled=True)`, run in the agent container on the test host — then **turn it back OFF** when done
 (`enabled=False`). Never leave a thinking domain enabled on the test host.
+
+## Building a NEW app (not just fixing existing code)
+
+A *new* app is a different task from changing existing code, with a required path — follow it:
+
+1. **Read `specs/APP_PACKAGES.md` first** — the platform's app contract (the manifest, a short
+   globally-unique entity-type prefix, the `digest_record`-on-every-mutation rule, the `routes.py`
+   bare-router convention, the `ui/index.js` launcher registry, the `__init__.py` / per-app schema /
+   migrations layout). A new app MUST satisfy this contract; it's the source of truth, not guesswork.
+2. **Scaffold FIRST — never hand-roll the package structure.** Run the **`scaffold`** op
+   (`evolve_adapter.py scaffold unit="<App Name>"`, i.e. `scripts/new_app.py "<App Name>"`) to generate
+   a contract-satisfying skeleton as a **sibling repo** `../skipperbot-app-<slug>/`. It is
+   **non-interactive** (pass the display name as an arg). This wires the manifest, data layer (with
+   `digest_record`), routes, UI registry, and `__init__.py` correctly so the app loads when dropped into
+   `apps/<id>/`.
+3. **Implement the app's behavior INSIDE that scaffold** — fill in `data.py`, `tools.py`, `routes.py`,
+   the UI, the manifest's entity prefix + tool keywords, and migrations. Don't reinvent the layout the
+   scaffold already got right; extend it.
+
+Because a new app is its **own repo**, shipping it end-to-end also needs the multi-repo onboarding:
+create the GitHub repo, add it to `evolve.repos.yaml` (`type: app`, `host: <platform>`,
+`clone_path: apps/<id>`), and clone it on the brain + test host. Until those exist, a new-app build can
+scaffold + implement locally but cannot deploy/validate as an installed app.
