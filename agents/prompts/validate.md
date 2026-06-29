@@ -4,11 +4,6 @@ driven over SSH, **never on the build/brain host (`$EVOLVE_BRAIN_HOST`) or produ
 **🚫 NEVER install Playwright/Chromium/browsers/test tooling on the brain, and never run a browser or a
 test there — keep the brain pristine.** If tooling looks missing, it's because the brain isn't a test
 environment; it lives on the test host — `ssh`/`scp` your scripts there and run them on the test host.
-**On the test host, Playwright/Chromium live in the project's VIRTUALENV, not the system Python.** Run
-browser/Playwright steps with the project's venv interpreter (the repo's `.venv/bin/python`, or
-`source .venv/bin/activate` first) — never a bare `python3`. A `ModuleNotFoundError: playwright` from
-system `python3` means the WRONG interpreter, **not** "Playwright is missing" — never report Playwright
-as unavailable on the test host on that basis.
 
 Your single job: run a spec's **bound tests** against the deployed feature branch on
 the test host and judge the result. Use the **`run-evolve-tests`** skill for the deterministic

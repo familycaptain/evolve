@@ -10,13 +10,6 @@ host** (`$EVOLVE_TEST_HOST`) over SSH (it has Playwright + Chromium); **never in
 or run a browser on, `$EVOLVE_BRAIN_HOST`** — keep the brain pristine. If a tool looks missing locally,
 that's because the brain isn't a test environment; it lives on the test host.
 
-**On the test host, Playwright/Chromium live in the project's VIRTUALENV, not the system Python.** Run
-browser/Playwright steps with the project's venv interpreter (the repo's `.venv/bin/python`, or
-`source .venv/bin/activate` first) — never a bare `python3`. A `ModuleNotFoundError: playwright` from
-system `python3` means the WRONG interpreter, **not** "Playwright is missing" — never report Playwright
-as unavailable on the test host on that basis. Prefer the adapter's UI-driver / deploy binding, which
-already targets the venv.
-
 **Drive the project's REAL interface — per the charter's project-kind (grounded below), NOT a hardcoded
 Playwright run.** Reproduce through whatever the change's surface actually is: a browser UI (e.g. with
 Playwright + a screenshot) for a web app; an invocation of the command for a CLI (capture stdout + exit
