@@ -4,6 +4,8 @@
 
 `v0.1.0` · MIT licensed · runs inside Claude Code
 
+![Evolve dashboard screenshot](./screenshots/evolve-screenshot.png)
+
 Evolve is a swarm of 20 specialized agents that run your software delivery
 loop: it watches your repos' GitHub issues, reproduces and triages them, writes specs, designs and
 implements changes, validates them on a test machine, provides screenshot proof of fix, and ships them — stopping at human gates for the calls only you should make. It runs **inside Claude Code**, steered by a human (**you**) at the gates and assisted by a special project management Claude agent that serves as your helper. The only external integration is **GitHub**.
