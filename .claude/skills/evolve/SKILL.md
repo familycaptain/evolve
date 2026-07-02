@@ -240,7 +240,12 @@ Pick **ONE** item, run its segment below, then **END the pass** (do not start a 
     operator a known-broken build. Treat it as a verify `change`: **RESUME THE SAME CONVERSATION**,
     judge the depth (localized bug → re-implement → Gate 2; new approach → re-spec → Gate 1), fix,
     re-validate. **END.**
-  - **GREEN:** push the
+  - **GREEN:** **first `git push origin $EVOLVE_STAGING_BRANCH`** (fast-forward) so the merged code reaches
+  GitHub. The brain merges to its **LOCAL** `$EVOLVE_STAGING_BRANCH` and does NOT otherwise push; the uat
+  host tracks **GitHub** `origin/$EVOLVE_STAGING_BRANCH`, so WITHOUT this push the operator's uat verify runs a
+  **STALE** build. (The test host's `origin` is the brain, so pre-verify didn't need it — uat does. This is
+  the ONE point in the flow where the loop pushes to GitHub; the later `$EVOLVE_STAGING_BRANCH →
+  $EVOLVE_WORLD_BRANCH` promotion stays operator-owned.) Then push the
   **Gate 3 (verify)** packet — `recommendation` = {action:`verify`, why: "Merged to `$EVOLVE_STAGING_BRANCH` as
   `<sha>`; **automated live acceptance on the test host PASSED** (<scenarios + key evidence>). Deploy to
   **the uat host (`$EVOLVE_UAT_HOST`)** (your manual test box, the deploy command `$EVOLVE_DEPLOY_CMD`) and confirm issue #<n>: <what to check>",
