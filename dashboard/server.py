@@ -103,6 +103,28 @@ def _require_decide(authorization: str | None) -> str:
     raise HTTPException(status_code=403, detail="decide token required")
 
 
+def _require_decide_for_gate(authorization: str | None, gate_kind: str, decision: str) -> str:
+    """Per-gate authorization for a decision.
+
+    Gate 1 (requirements) and gate 3 (verify / UAT) are decide-ONLY — only the operator's
+    decide token may act on them. Gate 2 (validate) is the two-token CARVE-OUT: the loop's
+    SERVICE token may record an AUTOMATED APPROVE on green validation (recorded as
+    decided_by='auto'), but never a change/reject, and never gate 1 or gate 3. So the engine
+    can advance a validated build to UAT on its own, yet can never give the two FINAL
+    approvals — requirements and UAT — which remain the operator's."""
+    p = _principal(authorization)
+    if p == "decide":
+        return p
+    if p == "service":
+        if gate_kind == "gate2" and decision == "approve":
+            return "auto"
+        raise HTTPException(status_code=403,
+                            detail="a service token may only auto-approve gate 2 (validate)")
+    if not DECIDE_TOKEN and not SERVICE_TOKEN:
+        return "dev"  # local dev: no tokens configured → allow
+    raise HTTPException(status_code=403, detail="decide token required")
+
+
 # --- helpers ------------------------------------------------------------------
 def _iid(body: dict) -> str:
     """The engine bridge posts 'instance_id'; the original packet uses 'instance'.
@@ -224,14 +246,19 @@ async def get_gate(instance_id: str):
 @app.post(PREFIX + "/gates/{instance_id}/decision")
 async def post_decision(instance_id: str, body: dict = Body(...),
                         authorization: str | None = Header(default=None)):
-    principal = _require_decide(authorization)  # 403 for a service token
     decision = (body.get("decision") or "").strip()
     if decision not in ("approve", "change", "reject"):
         raise HTTPException(status_code=422, detail="decision must be approve|change|reject")
+    gate = store.get_gate(instance_id)
+    if not gate:
+        raise HTTPException(status_code=404, detail=f"no gate {instance_id}")
+    # Per-gate auth: gate1/gate3 are operator-only; gate2 may be auto-approved by the loop.
+    principal = _require_decide_for_gate(authorization, (gate.get("gate") or ""), decision)
     note = body.get("note") or ""
     if not store.record_decision(instance_id, decision=decision, note=note, decided_by=principal):
         raise HTTPException(status_code=404, detail=f"no gate {instance_id}")
-    return {"ok": True, "instance_id": instance_id, "decision": decision, "status": "decided"}
+    return {"ok": True, "instance_id": instance_id, "decision": decision,
+            "status": "decided", "decided_by": principal}
 
 
 @app.post(PREFIX + "/gates/{instance_id}/resolve")

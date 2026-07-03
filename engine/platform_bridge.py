@@ -159,6 +159,15 @@ def resolve(instance_id: str, status: str, token: str | None = None) -> dict:
     return _send(f"/api/apps/evolve/gates/{instance_id}/resolve", {"status": status})
 
 
+def decide(instance_id: str, decision: str, note: str = "", token: str | None = None) -> dict:
+    """Record a gate decision via the service token. The server only permits a service token
+    to APPROVE gate 2 (validate) — the two-token carve-out — and 403s a service approve on
+    gate 1/3. The loop uses this to AUTO-APPROVE a green-validated build (recorded as
+    decided_by='auto'); it never decides requirements or UAT. Buffered if the dashboard is down."""
+    return _send(f"/api/apps/evolve/gates/{instance_id}/decision",
+                 {"decision": decision, "note": note})
+
+
 def report_run(instance_id: str, *, title="", source="", phase="", status="",
                current_agent="", current_node="", cost_usd=None, events=None,
                token: str | None = None) -> dict:

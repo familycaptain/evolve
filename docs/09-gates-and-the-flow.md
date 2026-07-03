@@ -1,9 +1,9 @@
 # The Gates, the Agents & the Flow
 
 This chapter is the conceptual heart of the manual: **who does what, in what order, and
-where *you* are in the loop.** It covers the three human gates and what each one is
-actually asking you, the reproduce-first opening of Gate 1, the full agent roster, the
-end-to-end pipeline, and the run lifecycle.
+where *you* are in the loop.** It covers the two operator gates (plus the automated validate gate
+between them) and what each one is asking you, the reproduce-first opening of Gate 1, the full agent
+roster, the end-to-end pipeline, and the run lifecycle.
 
 For the authoritative picture — the Mermaid diagram of the whole swarm — open
 [`sdlc.md`](sdlc.md). This chapter is the prose companion to that diagram. For the
@@ -16,11 +16,12 @@ machinery that makes the gates real (the four-machine fleet, the two-token split
 
 ---
 
-## 1. The three gates
+## 1. The gates: two operator, one automated
 
-Evolve does the labor; **you make three judgment calls per change, and only those three.**
-A requester files one GitHub issue, you make three decisions, and the swarm does everything
-in between — live in front of you the whole time. Each gate is a different question.
+Evolve does the labor; **you make two judgment calls per change, and only those two** — Gate 1 (intent)
+and Gate 3 (verify). Between them sits **Gate 2 (validate), which is automated**: the loop approves it
+itself on a green test-host run. A requester files one GitHub issue, you make two decisions, and the
+swarm does everything in between — live in front of you the whole time. Each gate is a different question.
 
 ### Gate 1 — approve the *intent / approach* (before the build)
 
@@ -38,29 +39,36 @@ changes** (the Code Scout's read-only sketch — which files, add/modify/**rewri
 new logic lands), any open decisions the design left for a human, and every reviewer's full
 findings.
 
-### Gate 2 — approve the *result* (the validated change)
+### Gate 2 — validate (the automated gate)
 
-Gate 2 happens **after the build.** The implement agent has written the code (and a bound
-test) inside an isolated worktree, the change has been validated on the test machine, and
-the dependency-rule guard has run. The question is:
+Gate 2 happens **after the build**, and — unlike Gate 1 and Gate 3 — it is **not an operator
+decision.** The implement agent has written the code (and a bound test) inside an isolated worktree, the
+change has been validated on the test machine, and the dependency-rule guard has run. The question Gate 2
+answers is still *"did the change actually do it, and is the diff acceptable?"* — but **the loop answers
+it itself**, mechanically, from the validation result:
 
-> *Did the change actually do it, and is the diff acceptable?*
+> **On a GREEN validation the loop auto-approves Gate 2 itself** (recorded `decided_by=auto`), then
+> merges the candidate to the staging (`release`) branch, pushes `origin/<staging>`, and opens Gate 3.
+> **On a RED validation it loops back to re-implement — and nothing is published.**
 
-The packet carries the **full diff**, the **validation result** (the bound test's outcome
-plus a live-acceptance run), the dependency-check result, and the **after-evidence on the
-GitHub issue**. After-evidence is **mandatory** — symmetric with the Gate-1 reproduce
-before-evidence — and takes the form the change calls for: a **screenshot** for a UI change,
-or the **captured proof** (API response / stdout / test transcript via an issue comment) for
-a backend / CLI / library change. The build **fails closed**: a change reaches a *green* Gate 2
-only if the agent actually changed code, included a runnable bound test that passed on the test
-machine, **and posted the after-evidence to the issue** — a green verdict with no posted
-evidence is treated as incomplete, not a pass. A failed, empty, untested, or unevidenced build
-lands at Gate 2 with a `change` recommendation that names the reason — a broken or unproven
-build can never arrive looking approvable.
+There is no human park here: green publishes to staging, red re-implements. The loop's **service** token
+is permitted to record *this one* approval and nothing else — never a change/reject, never Gate 1 or
+Gate 3 (see [Architecture → the two-token model](02-architecture.md)).
+
+The result packet the loop records still carries the **full diff**, the **validation result** (the bound
+test's outcome plus a live-acceptance run), the dependency-check result, and the **after-evidence on the
+GitHub issue** — all viewable in the dashboard. After-evidence is **mandatory** — symmetric with the
+Gate-1 reproduce before-evidence — and takes the form the change calls for: a **screenshot** for a UI
+change, or the **captured proof** (API response / stdout / test transcript via an issue comment) for a
+backend / CLI / library change. The build **fails closed**, which is exactly what makes an automated
+approval safe: a change is *green* only if the agent actually changed code, included a runnable bound
+test that passed on the test machine, **and posted the after-evidence to the issue** — a green verdict
+with no posted evidence is treated as incomplete, not a pass. A failed, empty, untested, or unevidenced
+build is **never** green, so it is never auto-approved: it loops back to implement with the reason named.
 
 ### Gate 3 — *verify* it works live (then it closes)
 
-**Merge is not done.** A Gate-2 approve auto-merges a *candidate* to the staging branch and
+**Merge is not done.** The automated Gate-2 approval auto-merges a *candidate* to the staging branch and
 deploys it to the **UAT machine** (a separate, mock-data host that tracks the staging
 branch). The question is:
 
@@ -74,15 +82,16 @@ production deployment to confirm a fix.)
 
 ### What Approve / Change / Reject do at each gate
 
-Every gate offers the same three verbs, but they mean something gate-specific:
+Each **operator** gate offers the same three verbs, but they mean something gate-specific. Gate 2 is
+automated — it has no operator verbs; the loop decides it from the validation result:
 
 | | **Approve** | **Change** ("change this") | **Reject** |
 |---|---|---|---|
 | **Gate 1** | Build it. The item enters the build phase: implement → tests → validate → Gate 2. | Bounce back to the spec phase with your note (the design re-frames, the spec is reworked, re-review), then re-push Gate 1. | Drop the item; the run is marked rejected. |
-| **Gate 2** | Auto-merge to the staging branch and deploy to UAT for verification (→ Gate 3). | Bounce back to **implement** with your note; re-validate, re-push Gate 2. | Tear down the worktree; the run is rejected. |
+| **Gate 2** *(automated — no operator action)* | On a **green** validation the loop auto-approves it itself (`decided_by=auto`), merges to the staging branch, deploys to UAT, and opens Gate 3. | *(n/a — a **red** validation instead loops back to **implement** automatically; nothing publishes.)* | *(n/a)* |
 | **Gate 3** (relabeled **✓ Works / Still-broken / Abandon**) | "✓ Works" → close the GitHub issue; the run is done. | "Still-broken" → resume the *same* conversation with your failure note. The agents judge the **depth** of the fix: a localized code bug re-implements → Gate 2; a wrong *approach* re-designs, **rewrites the spec**, re-reviews → Gate 1. | "Abandon" → drop it **without** closing the issue as resolved. |
 
-A "Change" at any gate carries your free-text note forward as authoritative guidance. At
+A "Change" at either operator gate carries your free-text note forward as authoritative guidance. At
 Gate 3 the routing rule is precise: only a code-level bug *under an unchanged spec* skips
 ahead to re-implement; if the fix changes the approach, the behavior contract, or a
 load-bearing technical choice, it is a new plan and gets the full funnel again (Gate 1).
@@ -92,16 +101,16 @@ spec; you never leave it documenting a way you no longer ship.
 ### The review-not-labor principle: one gate per deliverable, not per unit
 
 This is the core bet, and it is written into the charter's *Autonomy* section and the
-engine's `SKILL.md`: **the human gates are judgment points — approve the intent, verify the
-result — never a per-task drip.**
+engine's `SKILL.md`: **the operator gates are judgment points — approve the intent, verify it
+live — never a per-task drip.**
 
 A large or comprehensive issue that the agents decompose into many internal units (a *spec
 tree*: a foundation plus N per-app migrations, a service plus its callers, and so on) is
 **gated ONCE as one deliverable, not once per unit.** You approve the *approach* at Gate 1;
 the engine then autonomously builds **and** validates the whole thing — each internal unit
-still fully built and test-validated, no quality lost — and surfaces a **single** result
-gate carrying the *complete* evidence. The decomposition and sequencing are the engine's
-concern, not yours.
+still fully built and test-validated, no quality lost — auto-approves the validate gate on green, and
+surfaces a **single** verification (one Gate 3) carrying the *complete* evidence. The decomposition and
+sequencing are the engine's concern, not yours.
 
 Flooding you with a gate per leaf — dozens of near-identical "approve this unit?"
 touchpoints — would defeat the whole review-not-labor bet and is itself treated as a
@@ -223,11 +232,12 @@ read it alongside this.)
    check** (the main checkout must stay clean) and the **dependency-rule guard**, then
    **validate** on the test host. A green validation marks the proved spec(s) `verified`.
 
-6. **Gate 2 — approve result.** You get the diff, the validation, and the dep-check. Approve
-   / Change / Reject.
+6. **Gate 2 — validate (automated).** On a **green** validation the loop auto-approves Gate 2 itself
+   (`decided_by=auto`); a **red** one loops back to implement. There is no operator decision here — the
+   diff, the validation, and the dep-check are recorded for you to see, not to approve.
 
-7. **Merge & deploy to UAT.** On Approve, the engine auto-merges the feature → the staging
-   branch and re-syncs files to the DB. The staging branch deploys to the **UAT machine**
+7. **Merge & deploy to UAT.** On that green auto-approval, the engine auto-merges the feature → the
+   staging branch and re-syncs files to the DB. The staging branch deploys to the **UAT machine**
    (via the configured deploy command).
 
 8. **Gate 3 — verify live.** You (and your PM) test it on UAT. **✓ Works** closes the
@@ -271,15 +281,15 @@ new  →  gate1  →  build  →  gate2  →  verify  →  done
 - **`new`** — created; running the funnel + spec phase.
 - **`gate1`** — parked at Gate 1, awaiting your intent decision.
 - **`build`** — approved at Gate 1; implementing + validating.
-- **`gate2`** — parked at Gate 2, awaiting your result decision.
+- **`gate2`** — the **automated validate gate**: on green the loop auto-approves it itself (`decided_by=auto`) and advances to staging + Gate 3; on red it loops back to build. Not an operator wait.
 - **`verify`** — merged to staging and deployed to UAT; awaiting your live verification (Gate 3).
 - **`done`** — verified working; the GitHub issue is closed. Terminal.
 - **`rejected`** — rejected at a gate. Terminal.
 - **`parked`** — set aside by prioritize (the long tail). Terminal until re-surfaced.
 
-The phase is what lets the loop be non-blocking: a gate **parks** the item (phases `gate1`
-/ `gate2` / `verify` with no decision are correctly waiting on *you*, never "stranded"),
-and a later pass picks the decision up. A phase of `new` or `build` with no pending decision
+The phase is what lets the loop be non-blocking: an operator gate **parks** the item (phases `gate1`
+/ `verify` with no decision are correctly waiting on *you*, never "stranded"; `gate2` is loop-owned and
+auto-decided on green), and a later pass picks the decision up. A phase of `new` or `build` with no pending decision
 means a pass was interrupted mid-segment — the loop *resumes it from files*. See
 [Operations & Troubleshooting](10-operations-and-troubleshooting.md) for how that resume
 works and what to do in each state.

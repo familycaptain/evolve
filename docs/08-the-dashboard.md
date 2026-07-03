@@ -77,8 +77,9 @@ In the header there's a **decide token** field. Paste your `EVOLVE_DECIDE_TOKEN`
 - *(It's a plain text field that masks via CSS, not a `type=password` field — deliberately, so
   macOS / iCloud password managers don't intercept the paste.)*
 - **Until a token is set, the decision buttons are disabled** — you can read everything, but you
-  can't decide. This is the operator's key; the service token the brain uses is rejected (403) at the
-  decision endpoint, so the engine can push packets but never decide them.
+  can't decide. This is the operator's key; the service token the brain uses is rejected (403) when it
+  tries to decide an **operator** gate, so the engine can push packets and auto-approve the validate gate
+  (Gate 2) but can never decide Gate 1 or Gate 3.
 
 The token lives only in your browser and evolve-admin's `.env`. GET endpoints (reading runs, gates,
 events) need no auth at all; only mutations do.
@@ -91,43 +92,53 @@ events) need no auth at all; only mutations do.
 
 ---
 
-## The runs rail (left)
+## The Kanban board
 
-The left rail lists the runs in scope. Each row shows:
+The main view is a **six-column Kanban board** of every run in scope — one **card per work item**,
+sitting in its current stage's column. The columns, left to right, are the stages a run moves through:
 
-- **Title** (or the run id if untitled) and a **status chip** — colour-coded:
-  - blue = `running` / `in_progress`
-  - green = `done` / `merged` / `verified`
-  - amber = `waiting`
-  - red = `failed` / `error` / `rejected`
-  - grey = `archived`
-  A **done** run reads **`verified ✓`** (and its detail panel shows a *"GitHub issue closed"* marker);
-  a run whose gate you've decided shows **`✓ approved`** until the loop acts on it (not "waiting").
-- A pulsing **"⚠ waiting on you"** badge whenever that run has a gate parked for your decision. This
-  is the at-a-glance signal that the run needs you.
-- A meta line: the **run id** (`ev-<n>`, or `ev-<repo-slug>-<n>` for a non-primary repo), the
-  **phase**, and the **current agent** (`@<agent>`).
+**New · Requirements · Build · Validate · UAT · Closed**
 
-At the top of the rail, an **active / archived** toggle switches the list between live runs and
-archived ones. (There is no spend/cost readout: Evolve runs on the Claude Code **subscription**, not
-the metered API, so there are no per-run token costs to show.)
+The columns map directly onto the run's `phase`:
 
-Click a run to open it in the main panel.
+| Column | Phase(s) | What it holds |
+|---|---|---|
+| **New** | `new`, `parked`, (unset) | Just opened — running the funnel + spec phase — or parked as the long tail. |
+| **Requirements** | `gate1` | Parked at **Gate 1**, waiting on your *intent* decision (an operator gate). |
+| **Build** | `build` | Approved at Gate 1; implementing + validating on the test host. |
+| **Validate** | `gate2` | The **automated** validate gate — the loop auto-approves on green and carries it on; **no operator action**. |
+| **UAT** | `verify` | Merged to staging + deployed to UAT, parked at **Gate 3** for your live *verification* (an operator gate). |
+| **Closed** | `done`, `rejected` | Verified + issue closed, or rejected. |
+
+Cards **reflow between columns automatically** as their phase advances — the board re-renders every poll,
+so a run visibly slides right as the swarm carries it forward. Each card shows its **title** (or run id if
+untitled), a colour-coded **status chip**, a meta line (the **run id** `ev-<n>` / `ev-<repo-slug>-<n>`,
+the **phase**, and the **current agent** `@<agent>`), and a pulsing **"⚠ waiting on you"** badge whenever
+it has an **operator** gate parked for you (Requirements or UAT). The chip colours: blue = `running` /
+`in_progress`; green = `done` / `merged` / `verified` (a **done** run reads **`verified ✓`**); amber =
+`waiting`; red = `failed` / `error` / `rejected`; grey = `parked` / `archived`. A run whose operator gate
+you've decided reads **`✓ approved`** until the loop acts on it (not "waiting").
+
+An **active / archived** toggle in the header switches every column between live and archived runs.
+(There is no spend/cost readout: Evolve runs on the Claude Code **subscription**, not the metered API, so
+there are no per-run token costs to show.)
+
+**Click any card to open its detail modal** (below).
 
 ---
 
 ## The repo-switcher (header)
 
-A **repo** dropdown in the header scopes every view (rail, gates) to one repo from your
+A **repo** dropdown in the header scopes every view (the board, gates) to one repo from your
 collection, or **all repos**. Its options come from `GET /api/apps/evolve/repos`, which reads your
 `evolve.repos.yaml` registry (falling back to the single `GITHUB_REPO` if no registry is
-configured). Switching repo clears the current selection and reloads the rail for that scope.
+configured). Switching repo clears the current selection and reloads the board for that scope.
 
 ---
 
-## The issue-intake panel (rail)
+## The issue-intake panel
 
-When you select **one** repo, an **issue intake** panel appears at the top of the rail showing that
+When you select **one** repo, an **issue intake** panel appears above the board showing that
 repo's intake mode (`auto` or `manual` — see [Configuration → Issue intake](04-configuration.md#issue-intake-auto-vs-manual)):
 
 - **auto** — every open issue is processed; the panel just states that.
@@ -138,17 +149,22 @@ repo's intake mode (`auto` or `manual` — see [Configuration → Issue intake](
 
 ---
 
-## The gate-review panel (main)
+## The detail modal (click a card)
 
-When you select a run that has a parked gate, the main panel leads with the **gate review**. It
-renders the packet exactly as the brain pushed it, so you see the *actual* spec and reviews, not a
-summary.
+Clicking a card opens a **full-screen, internally-scrolling detail modal** for that run (close it with
+the **×**, a click on the backdrop, or **Esc**). It is the run's complete workspace — the spec, the
+decisions, the validation, the evidence, the diff, and the live activity — rendered exactly as the brain
+pushed it, not summarized. For a run parked at an **operator** gate (Requirements or UAT) the modal leads
+with the **gate review** and the approve/change/reject controls; the automated **Validate** gate carries
+no operator controls — its result is shown for the record, already decided by the loop. The modal
+re-renders on each poll, so its contents stay live while it's open.
 
 ### The gate banner & label
 
 A prominent amber banner names the gate and the item: **"⚠ Gate 1 · intent — waiting on you"** (or
-**Gate 2 · result**, **Gate 3 · verify**). The label maps directly from the packet's gate:
-`gate1 → intent`, `gate2 → result`, `gate3 → verify`.
+**Gate 3 · verify** at UAT). The label maps from the packet's gate (`gate1 → intent`, `gate2 → result`,
+`gate3 → verify`). Only the **two operator gates** park "waiting on you"; a **Gate 2 · result** packet is
+shown as an already-recorded *automated* approval (`decided_by=auto`), never a prompt for you.
 
 ### The lead recommendation
 
@@ -180,9 +196,10 @@ Below the recommendation, the panel renders each packet section that's present, 
 Any packet field the panel doesn't have a dedicated renderer for is shown as collapsible
 pretty-printed JSON, so nothing is hidden.
 
-### The decision controls
+### The decision controls (operator gates only)
 
-At the bottom is **your decision** (relabelled **your verification** at Gate 3):
+At the bottom of an **operator** gate (Requirements or UAT) is **your decision** (relabelled **your
+verification** at Gate 3). The automated Validate gate has no such controls — the loop decides it:
 
 - **Per-decision controls** — each question the packet flagged renders as **selectable options**
   (radio buttons, with the agents' **recommended** option pre-selected and ★-badged) plus a **free-form
@@ -207,8 +224,8 @@ the next loop pass on the brain acts on it — the run never goes blank or back 
 
 ## The live activity tail
 
-Below the gate (or as the main content for a run with no parked gate) is the **live activity**
-section — the run's event stream, polled continuously. Lines are grouped by agent, each with a
+Inside the modal, below the gate review (or as the modal's main content for a run with no parked gate) is
+the **live activity** section — the run's event stream, polled continuously. Lines are grouped by agent, each with a
 timestamp, and show the kind (tool / info / emit / agent_start / agent_end …) and the full,
 untruncated message. This is where you watch the swarm narrate its work: the spec as it's written,
 each reviewer's findings, the lead's call, the build diff. It auto-scrolls as new events arrive.
@@ -219,10 +236,10 @@ each reviewer's findings, the lead's call, the build diff. It auto-scrolls as ne
 
 Both require the decide-token:
 
-- **Archive** — a button **in the run header** (next to the status chip) on any non-archived run;
-  hides a finished or abandoned run from the active list (it moves to the **archived** toggle, which
+- **Archive** — a button **in the run's modal** on any non-archived run;
+  hides a finished or abandoned run from the active board (it moves to the **archived** toggle, which
   shows ONLY archived runs).
-- **↻ Reverify** — beneath the activity tail; re-open a *done* run's Gate 3. Use it when an item was marked verified but later
+- **↻ Reverify** — beneath the activity tail in the modal; re-open a *done* run's Gate 3. Use it when an item was marked verified but later
   turns out to be broken: it sets the gate back to `waiting` (phase `verify`) **without** clobbering
   the existing packet, so the item comes back to your queue and the loop will re-engage it. Available
   on runs that are `done` / `verified` / `merged` or in the `verify` phase.
@@ -236,8 +253,11 @@ The SPA speaks a small REST contract under **`/api/apps/evolve`** — `runs`, `g
 issue-intake endpoints `admitted`, `admit`, `admit/revoke`. The same contract is what the engine CLIs
 (`evolve_explain.py`, `evolve_decide.py`, the brain's bridge) call, which is why the PM and the
 dashboard always agree on live state. GET endpoints are open; mutations need the service-or-decide
-token, and the decide-only endpoints (decision, archive, reverify, **admit / admit/revoke**) reject the
-service token outright. For the full contract and the two-token model, see
+token. The **decision** endpoint (`gates/{id}/decision`) is per-gate: it takes the operator's decide
+token for any gate, but the loop's service token **only** to auto-approve Gate 2 (validate) — it 403s the
+service token on any change/reject or on Gate 1 / Gate 3. The other decide-only endpoints (archive,
+reverify, **admit / admit/revoke**) reject the service token outright. For the full contract and the
+two-token model, see
 [Architecture & the Fleet](02-architecture.md).
 
 ---

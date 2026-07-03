@@ -13,8 +13,8 @@ implements changes, validates them on a test machine, provides screenshot proof 
 ### The 60-second version
 You run a **dashboard** + `/evolve-pm` on **evolve-admin** and `/loop /evolve` on **evolve-brain** (both
 in Claude Code). The loop watches your repos' GitHub issues, and a swarm of agents reproduces, specs,
-builds, and validates each change on **evolve-test** — parking at three human gates (**intent → result →
-verify**) that you decide in the dashboard. You make the judgment calls; the swarm does the labor. The
+builds, and validates each change on **evolve-test** — stopping at two operator gates (**intent →
+verify**), with an automated validate gate in between, that you decide in the dashboard. You make the judgment calls; the swarm does the labor. The
 only thing that's *yours* is the [charter](./docs/05-the-charter.md) (what your product is) and a
 [target adapter](./docs/06-target-adapters.md) (how to deploy + test it).
 
@@ -76,7 +76,9 @@ flowchart LR
 | **evolve-uat** | the target adapter's deploy (release) | Where **you** verify a shipped change actually works (gate-3) before the issue is closed. |
 
 The **two-token split** is the core safety property: the brain can *do* the work and *propose*
-decisions, but only the operator (on evolve-admin) can *approve* them.
+decisions, and its service token may auto-approve **Gate 2 (validate) only** on a green test-host run —
+but only the operator (on evolve-admin), holding the decide-token, can *approve* the two operator gates
+(**Gate 1** intent and **Gate 3** verify).
 
 ## Example workflow
 
@@ -121,17 +123,20 @@ One issue, start to finish. Two human-facing machines are live: **evolve-admin**
    GitHub issue** (again via the built-in `attach_image_to_issue` → catbox.moe) as proof the fix works.
    You see the whole agent stream in the console.
 
-7. **Gate 2 — you approve the result.** `ev-42` parks at **Gate 2** with the diff, the test result, and
-   the **before/after screenshots bracketing the change right on the GitHub issue**, plus the reviewers'
-   verdicts. You approve; the engine merges the change to your **staging branch**.
+7. **Gate 2 — validate (automated).** On a **green** validation the loop **auto-approves Gate 2 itself**
+   (recorded `decided_by=auto`) — there is no operator decision here. It assembles the result review (the
+   diff, the test result, the **before/after screenshots bracketing the change right on the GitHub
+   issue**, and the reviewers' verdicts), merges the change to your **staging branch**, and pushes it. *(A
+   red validation instead loops back to re-implement — nothing is published.)*
 
 8. **Gate 3 — you verify it for real.** The staging branch deploys to **evolve-uat** and `ev-42` parks at
    **Gate 3**. You (or a teammate) actually open the Settings page on the UAT box and save a profile — and
    it saves. It works → you mark it verified and the engine **closes the GitHub issue**. *(If it didn't,
    you bounce it back and the same run resumes — no new conversation.)*
 
-The requester filed one issue; you made three judgment calls — **intent, result, verify** — and the
-swarm did everything in between, live in front of you the whole time.
+The requester filed one issue; you made two judgment calls — **intent (requirements) and verify (UAT)** —
+and the swarm did everything in between (auto-approving the validate gate on green), live in front of you
+the whole time.
 
 ## Many issues at once — branch-per-issue, concurrent, no collisions
 
@@ -153,9 +158,10 @@ What keeps that safe:
   **interop** reviewer checks each change against the others for spec-vs-spec conflicts, and the
   swarm is **cross-item aware** — it can flag when one item supersedes or collides with another
   touching the same code, so two concurrent fixes don't quietly clobber each other.
-- **Merging is gated and staged.** A change only reaches your **staging branch** when *you* approve
-  Gate 2 — the engine merges `feature/ev-<n>` in, validates the merged result on the test host before
-  Gate 3, and the issue stays open until you verify it for real. Each issue lands on its own merit.
+- **Merging is gated and staged.** A change only reaches your **staging branch** on a **green
+  validation** — the loop auto-approves Gate 2, merges `feature/ev-<n>` in, validates the merged result on
+  the test host before Gate 3, and the issue stays open until you verify it for real. Each issue lands on
+  its own merit.
 
 So you can throw a whole backlog at it and watch the board: many branches, many stages, one queue,
 your gates the only synchronization point.
@@ -185,7 +191,7 @@ curated prompt + a typed output contract (`agents/registry.py`).
 | **implement** | build | Write the code that converges the codebase to the approved spec. |
 | **test-author** | build | Write/update the spec's bound acceptance tests. |
 | **validate** | build | Deploy to the test host, run the tests + drive the real UI, judge the result (with an **after**-screenshot). |
-| **review-packet** | build | Assemble the pre-digested Gate-2 review packet for you. |
+| **review-packet** | build | Assemble the pre-digested Gate-2 result-review packet (validation, diff, verdicts). |
 | **code-audit** | QA | Read code for logic bugs, edge cases, security smells, dead code (proactive QA sweeps). |
 
 ## Run it

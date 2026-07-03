@@ -78,13 +78,14 @@ Once all three are up, you do very little moment to moment. The pattern is:
 - **Items park at gates.** When a pass reaches a gate it writes the packet, flips the run to
   `waiting`, and ends. It does **not** wait, sleep, or poll for your decision. The loop moves on to
   other work.
-- **You decide on your own time.** Periodically check the dashboard's **runs rail** for the
-  **"⚠ waiting on you"** badge. Open the run, review the packet, decide. A *future* loop pass picks
+- **You decide on your own time.** Periodically check the dashboard's **board** for a card carrying the
+  **"⚠ waiting on you"** badge. Open the card, review the packet, decide. A *future* loop pass picks
   your decision up and continues that item exactly where it left off.
 
 So the loop never blocks on you, and you never block the loop. An item can sit parked indefinitely;
-meanwhile the swarm keeps advancing everything else. The gates are mandatory — nothing ships without
-your three decisions (intent, result, verify) — but they're asynchronous.
+meanwhile the swarm keeps advancing everything else. The operator gates are mandatory — nothing ships
+without your two decisions (intent + verify; the validate gate in between is automated, auto-approved on
+green) — but they're asynchronous.
 
 A run resumes from per-item state files, so the brain session can be interrupted (usage limit,
 restart, crash) and the next pass continues from where it stopped. If you ever need to confirm the
@@ -187,18 +188,19 @@ partner specifically — that's where requirements get clarified before a build 
 
 ### What Approve / Change / Reject mean
 
-The three actions are the same at every gate; what they *route to* depends on the gate:
+The three actions are the same at each **operator** gate — Gate 1 and Gate 3; what they *route to*
+depends on the gate. (Gate 2, validate, is **automated** — the loop auto-approves it on a green
+validation and merges to staging; there are no operator actions there.)
 
 - **Approve** — proceed. At **Gate 1** this sends the item to build (your note becomes a build hint
-  layered on the authoritative spec). At **Gate 2** it merges the change to your **staging branch**
-  and moves the item to verify. At **Gate 3** ("✓ Works") it confirms the change works for real and
-  the engine **closes the GitHub issue**.
+  layered on the authoritative spec) — the build then validates and, **on green, the loop auto-approves
+  Gate 2 itself** and merges the change to your **staging branch**, moving the item to verify. At **Gate
+  3** ("✓ Works") it confirms the change works for real and the engine **closes the GitHub issue**.
 - **Change** — bounce it back with revisions. At Gate 1, the spec phase re-runs on your note
-  (write the note as an ordered list of requirement revisions the spec phase can act on). At Gate 2,
-  the change is re-implemented. At Gate 3 ("Still-broken"), the *same* run resumes with your failure
-  report as input — no new conversation — and the agents judge whether it's a localized bug
-  (re-implement) or a wrong approach (re-spec). A `Change` should carry a note explaining what to
-  change.
+  (write the note as an ordered list of requirement revisions the spec phase can act on). At Gate 3
+  ("Still-broken"), the *same* run resumes with your failure report as input — no new conversation — and
+  the agents judge whether it's a localized bug (re-implement) or a wrong approach (re-spec). A `Change`
+  should carry a note explaining what to change.
 - **Reject** — stop this item. The worktree is torn down and the run is marked rejected. (Note: an
   *operator-authored* item is never auto-rejected upstream by triage — you remain the authority — but
   you can always reject it yourself at a gate.)
@@ -221,14 +223,14 @@ This two-token split is the core safety property (see [Architecture](02-architec
 
 ## 6. Watching runs
 
-While the swarm works, the dashboard narrates it live. Select any run to see:
+While the swarm works, the dashboard narrates it live. Click any card to open its detail modal and see:
 
 - its **status, phase, current agent/node, and live spend**, and
 - the **live activity tail** — each agent's steps as they happen (start/end lines, tool calls,
   emitted artifacts like the full spec, each reviewer's findings, the lead's recommendation, the
   build diff). Grouped by agent, it's the play-by-play of what the swarm is doing.
 
-You read a run's *state* from the rail and the panel sub-header: the status chip (running / building
+You read a run's *state* from its board card and the modal header: the status chip (running / building
 / waiting / merged / rejected …), the `phase`, and which agent is active. The full UI is documented
 in [The Dashboard](08-the-dashboard.md).
 

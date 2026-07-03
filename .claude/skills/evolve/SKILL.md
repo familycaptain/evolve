@@ -68,7 +68,13 @@ test the candidate's instance_id for membership.
 `phase` ∈ `new` → `gate1` → `build` → `gate2` → **`verify`** → `done` (terminal: also `rejected` /
 `parked`). The phase tells the next pass which segment to run. Artifacts (`triage.json`,
 `grounding.json`, `design.json`, `spec*.json`, reviews, `lead.json`, the gate packets) live beside it.
-**Merge is NOT done.** A Gate-2 approve merges to `$EVOLVE_STAGING_BRANCH` but the item goes to `verify`: the operator
+**TWO operator gates, one automated.** You make exactly TWO judgment calls per change:
+**Gate 1 (requirements)** and **Gate 3 (verify / UAT)**. **Gate 2 (validate) is AUTOMATED** — the loop
+itself approves it on green test-host validation (recorded `decided_by=auto` — the two-token carve-out;
+the loop's service token may approve gate 2 only, never gate 1 or gate 3). On that auto-approval the loop
+merges to `$EVOLVE_STAGING_BRANCH`, pushes `origin/$EVOLVE_STAGING_BRANCH`, and opens Gate 3; a RED
+validation loops back to re-implement and **nothing is published**. Gate 2 is therefore **loop-owned**, not
+parked on you. **Merge is NOT done.** After the auto-approved merge the item goes to `verify`: the operator
 deploys to the uat host (`$EVOLVE_UAT_HOST`), tests it, and only then confirms ✓works (→ done, close the GitHub issue) or
 ✗broken (→ resume the SAME conversation with their failure note, fix, re-validate, re-merge). The
 GitHub issue stays OPEN until verified — an open issue means "not confirmed working yet."
@@ -91,10 +97,12 @@ GitHub issue stays OPEN until verified — an open issue means "not confirmed wo
   mid-work), so the item is stuck — e.g. a run frozen at `building` after the build pass died
   mid-`implement`. **RESUME it from its files** (don't wait for anything): `phase=new` → re-run the
   **FUNNEL / SPEC PHASE** from its saved artifacts; `phase=build` → re-locate (or re-cut) the worktree
-  and re-run **implement → isolation check → dep-guard → validate → push Gate 2**. (WORKING phases only:
-  `gate1`/`gate2`/`verify` with no decision are correctly **PARKED on the operator** — never "resume"
-  those, you'd duplicate a gate. This is the "resumes from files" guarantee — without it an interrupted
-  build strands at `building` forever, invisible to both (a) and (c).)
+  and re-run **implement → isolation check → dep-guard → validate → auto-approve Gate 2 → merge → push →
+  open Gate 3**; `phase=gate2` → re-run the **auto-approval** (`autoapprove` → merge → push → Gate 3).
+  (Only `gate1`/`verify` with no decision are **PARKED on the operator** — your two gates; never "resume"
+  those, you'd duplicate a gate. **`gate2` is LOOP-owned** — auto-approved on green validation, so it's a
+  resumable working phase, never parked on you. This is the "resumes from files" guarantee — without it an
+  interrupted build strands at `building` forever, invisible to both (a) and (c).)
 - **c. Else a new open issue** — scan **ALL registered repos** (not just the platform):
   `python3 -c "from engine import intake; [print(i['repo'], i['number'], i['title']) for i in intake.all_admissible_issues()]"`.
   Each result carries its **`repo`** and `number`; compute its `instance_id` (per the run-id rule above —
@@ -209,12 +217,17 @@ Pick **ONE** item, run its segment below, then **END the pass** (do not start a 
   Pair it with the gate-1 reproduce before-evidence so the issue carries the before→after the requester can
   see. If validate is GREEN but no evidence was captured+posted, the fix is **INCOMPLETE**: go back, capture
   it, post it, populate `evidence`, and only then proceed. A green verdict with an empty `evidence` is a FAIL.
-  Push **Gate 2** (diff + validation + the dep-check result + the posted `evidence` refs), `phase=gate2`, **END**.
+  When validate is **GREEN**: push the **Gate 2** packet (diff + validation + the dep-check result + the
+  posted `evidence` refs) for visibility, then **AUTO-APPROVE it** — `python3 scripts/evolve_runs.py
+  autoapprove ev-<n>`. Gate 2 is the AUTOMATED gate: the loop's service token records the approval
+  (`decided_by=auto`; the dashboard permits a service approve on gate 2 ONLY, never gate 1/3), so it is
+  **never parked on the operator**. `phase=gate2`, **END** — the next pass runs the merge. If validate is
+  **RED**: do NOT push or auto-approve — loop back to re-implement (fix → re-validate); nothing is published.
   - decision=`change` → re-run the spec phase with the operator's note, re-push Gate 1, **END**.
   - decision=`reject` → `resolve ev-<n> rejected` (clears gate + sets run rejected), teardown the
     worktree, `phase=rejected`, add to `seen.json`, **END**.
 
-- **`phase=gate2`, decision=`approve`:** Merge feature → `$EVOLVE_STAGING_BRANCH` (mechanics). **On a merge conflict:**
+- **`phase=gate2`, decision=`approve` (normally the loop's OWN auto-approval, `decided_by=auto` — Gate 2 is automated):** Merge feature → `$EVOLVE_STAGING_BRANCH` (mechanics). **On a merge conflict:**
   resolve **trivial / non-code** conflicts yourself and continue — typically a **doc or list** both
   sides appended to (e.g. two changes each adding a row to a shared registry/manifest list, or a
   changelog) → keep **BOTH** sides' additions. This is common landing a sibling-cluster tail (several

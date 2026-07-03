@@ -109,7 +109,9 @@ def digest(iid, runs):
     for d in (pkt.get("decisions_needed") or []):
         print("\n-- Decision for you --")
         _line("question", d.get("question"))
-        _line("options", " | ".join(d.get("options") or []))
+        _opts = [o.get("label") or o.get("value") or str(o) if isinstance(o, dict) else str(o)
+                 for o in (d.get("options") or [])]
+        _line("options", " | ".join(_opts))
         _line("recommends", d.get("recommendation"))
 
     prop = pkt.get("proposal") or {}
@@ -119,7 +121,10 @@ def digest(iid, runs):
         _line("title", prop.get("title"))
         _line("behavior", prop.get("behavior"))
         for t in _aslist(prop.get("tests")):
-            _line("test", f"{t.get('path') or t.get('type')} — {t.get('rubric', '')}")
+            if isinstance(t, dict):
+                _line("test", f"{t.get('path') or t.get('type')} — {t.get('rubric', '')}")
+            else:
+                _line("test", str(t))
         _line("notes", prop.get("notes"))
 
     cp = pkt.get("code_plan") or {}

@@ -12,13 +12,15 @@ It runs **inside Claude Code**. The LLM is **Claude**; the only external integra
 
 The whole design rests on one trade. The agent swarm does the labor — reading code,
 reproducing bugs, writing specs, implementing, validating, screenshotting. **You make
-three judgment calls per change**, and only those three:
+two judgment calls per change**, and only those two:
 
 1. **Intent** (Gate 1) — *Is this the right thing to build, and is the approach sound?*
-2. **Result** (Gate 2) — *Did the change actually do it, and is the diff acceptable?*
-3. **Verify** (Gate 3) — *Does it really work when I use it for real?*
+2. **Verify** (Gate 3) — *Does it really work when I use it for real?*
 
-A requester files one GitHub issue. You make three decisions. The swarm does everything
+Gate 2 (validate) sits between them but is **automated**: on a green test-host validation the loop
+auto-approves it itself (`decided_by=auto`) and merges to staging; a red one loops back and nothing publishes.
+
+A requester files one GitHub issue. You make two decisions. The swarm does everything
 in between — live in front of you the whole time. That is the bet: human attention is the
 scarce resource, so spend it only at the gates.
 
@@ -31,7 +33,8 @@ issues in  →  the loop (agent swarm)  →  human gates  →  shipped
 - **Issues come in** from GitHub (a teammate, a user, or a proactive QA/feature agent).
 - **The loop** picks the most-ready item and advances it through the funnel and spec
   phase, narrating every agent's work to the dashboard.
-- **At each gate** the item parks and waits for *you* — it never auto-decides.
+- **At each operator gate** the item parks and waits for *you* — it never auto-decides. (The one
+  automated gate, Gate 2 validate, the loop decides itself on a green validation.)
 - **Shipped** means an issue stays open until *you* verify the fix on a real machine; only
   then does Evolve close it. A closed issue means a human confirmed it works.
 
@@ -54,11 +57,12 @@ issues in  →  the loop (agent swarm)  →  human gates  →  shipped
   by the loop; the critics (spec-audit, the reviewers) fork into independent subagents for
   fresh eyes.
 
-- **The three gates** — the human control surface. **Gate 1** approves *intent* (after a
-  security screen, a live reproduction, and the spec phase). **Gate 2** approves the
-  *result* (diff + tests + before/after screenshots). **Gate 3** *verifies* the change live
-  on a real machine before the issue is closed. Each gate can also bounce an item back
-  ("change this") or reject it.
+- **The gates — two operator, one automated** — the human control surface. **Gate 1** (operator)
+  approves *intent* (after a security screen, a live reproduction, and the spec phase). **Gate 2**
+  (validate) is **automated** — on a green test-host validation the loop auto-approves it itself
+  (`decided_by=auto`) and merges to staging; a red one loops back and nothing publishes. **Gate 3**
+  (operator) *verifies* the change live on a real machine before the issue is closed. The two operator
+  gates can also bounce an item back ("change this") or reject it.
 
 - **The charter** — `CHARTER.md`, the one piece that is truly yours. It describes what your
   product *is* and *isn't*. It is the vision authority every agent judges against — what
@@ -92,7 +96,7 @@ issues in  →  the loop (agent swarm)  →  human gates  →  shipped
 ## What Evolve is NOT
 
 - **Not unattended CI.** It is the opposite of fire-and-forget. The gates are mandatory;
-  nothing ships without your three decisions. An item parks indefinitely until you act.
+  nothing ships without your two decisions (Gate 1 and Gate 3). An item parks indefinitely until you act.
 - **Not autonomous-without-gates.** The agent swarm can *do* the work and *propose*
   decisions, but it structurally **cannot decide its own gates** — that is enforced by a
   two-token split (see [Architecture](02-architecture.md)). The control is the point.

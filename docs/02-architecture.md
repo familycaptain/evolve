@@ -39,7 +39,7 @@ flowchart TB
 | Machine | Runs | Why |
 |---|---|---|
 | **evolve-admin** | `/evolve-pm` + `/chat-ev` (Claude Code) **and** the dashboard web server | Your control surface. You review packets, ask questions, and decide gates here. It holds the **decide-token** — only this machine can approve, change, or reject a gate. |
-| **evolve-brain** | `/loop /evolve` (Claude Code) | The autonomous engine. It polls issues, runs the agent swarm, grounds/specs/implements, cuts feature branches, and reports runs and gates to the dashboard. It holds only a **service-token** — it can push work and *propose* decisions but **cannot decide**. |
+| **evolve-brain** | `/loop /evolve` (Claude Code) | The autonomous engine. It polls issues, runs the agent swarm, grounds/specs/implements, cuts feature branches, and reports runs and gates to the dashboard. It holds only a **service-token** — it can push work, *propose* decisions, and auto-approve the **validate gate (Gate 2)** on green, but **cannot decide the two operator gates** (Gate 1 / Gate 3). |
 | **evolve-test** | the target adapter's deploy + validate | The disposable candidate-test box. The brain deploys a candidate here (the feature branch for Gate 2, the merged staging branch for the Gate-3 pre-verify) and drives live acceptance. It never builds or merges. |
 | **evolve-uat** | the target adapter's deploy (staging branch) | The human verify box. It tracks the staging branch; you (and your PM) test the shipped candidate by hand at Gate 3 before the issue is closed. Runs mock data so verifying never disturbs a production deployment. |
 
@@ -68,8 +68,8 @@ One change, machine by machine:
 5. **Brain → test → validates.** The brain deploys the candidate to evolve-test and drives
    live acceptance (Playwright UI + chat), judging on captured evidence (tool-calls, DB
    state, screenshots) — not vibes. Green → Gate 2; red → it loops or escalates.
-6. **Merge → push.** On Gate-2 approve the brain merges the feature branch to the staging
-   branch and pushes it.
+6. **Merge → push.** On a **green validation** the brain auto-approves Gate 2 itself
+   (`decided_by=auto`) and merges the feature branch to the staging branch and pushes it.
 7. **Staging → UAT → verify.** The staging branch deploys to evolve-uat. The item parks at
    Gate 3. You test it live. ✓works closes the GitHub issue; ✗broken resumes the *same* run.
 8. **Close.** Only on your verify does Evolve close the issue — closing the loop.
@@ -81,10 +81,13 @@ This is the core safety property. There are two engine secrets, both generated b
 
 - **`EVOLVE_DECIDE_TOKEN`** — the **parent / operator** token. It lives **only** in
   evolve-admin's `.env`. The PM uses it (via `scripts/evolve_decide.py`) to approve, change,
-  or reject a gate. The brain must never have it.
+  or reject the **two operator gates** — Gate 1 (requirements) and Gate 3 (verify / UAT). The
+  brain must never have it.
 - **`EVOLVE_SERVICE_TOKEN`** — the **brain / loop** token. The *same* value goes in both
   evolve-admin's and evolve-brain's `.env`. It lets the brain push runs, events, and gate
-  packets to the dashboard.
+  packets to the dashboard — and, as the one carve-out, **auto-approve Gate 2 (validate) only**
+  on a green validation (recorded `decided_by=auto`); it can never change/reject a gate, and
+  never touch Gate 1 or Gate 3.
 
 The dashboard enforces the split. From `dashboard/server.py`, `_principal()` maps an
 `Authorization: Bearer <token>` header to one of `decide`, `service`, or `unknown`. Two
@@ -92,24 +95,32 @@ guards then gate every mutation:
 
 - **`_require_mutator`** — used by run/event/gate *push* endpoints. A `decide` **or**
   `service` token passes.
-- **`_require_decide`** — used by the decision-class endpoints: `gates/{id}/decision`,
-  `runs/{id}/archive`, `runs/{id}/reverify`. **Only the decide token passes. A service
+- **`_require_decide`** — used by the operator-only mutations `runs/{id}/archive`,
+  `runs/{id}/reverify`, and the issue-admit endpoints. **Only the decide token passes. A service
   token is rejected with HTTP 403** — explicitly: `"a service token cannot decide a gate"`.
+- **`_require_decide_for_gate`** — used by the gate decision endpoint (`gates/{id}/decision`),
+  and it is **per-gate**: the operator's decide token may approve/change/reject **any** gate, but
+  the loop's **service** token may only record an **automated approve on Gate 2 (validate)** —
+  returned as `decided_by="auto"` — and is 403'd (`"a service token may only auto-approve gate 2
+  (validate)"`) on any change/reject, or on Gate 1 / Gate 3.
 
-So the engine on the brain can do everything *except* decide. It pushes a parked gate via
-`engine/platform_bridge.py` `push_gate()` (authenticated with the service token from
-`auth()`, whose docstring notes the service flag "permits POSTing gates but NOT deciding
-them"). The operator decides via `scripts/evolve_decide.py`, which loads the decide token
-from `.env` and POSTs to `/gates/{id}/decision` — and the script itself refuses to run if
-`EVOLVE_DECIDE_TOKEN` is unset, and surfaces a clean error on a 403.
+So the engine on the brain can do everything *except* decide the two **operator** gates. It pushes a
+parked gate via `engine/platform_bridge.py` `push_gate()` (authenticated with the service token from
+`auth()`), and it may record its own **automated Gate-2 approval** on a green validation — but the two
+final approvals (Gate 1 requirements, Gate 3 UAT) it physically cannot record. The operator decides those
+via `scripts/evolve_decide.py`, which loads the decide token from `.env` and POSTs to
+`/gates/{id}/decision` — and the script itself refuses to run if `EVOLVE_DECIDE_TOKEN` is unset, and
+surfaces a clean error on a 403.
 
-**The gates are the control surface.** The brain can propose `approve|change|reject` all day
-long; it physically cannot record one. That is what makes "the swarm labors, you review"
-an enforced property and not just a convention.
+**The operator gates are the control surface.** The brain can propose `approve|change|reject` all day
+long, and auto-approve the validate gate on green — but it physically cannot record a decision on the two
+**operator** gates. That is what makes "the swarm labors, you review" an enforced property and not just a
+convention.
 
 > **Local-dev note:** if *both* tokens are unset, the dashboard allows mutations (for
 > single-box development). But even then, a *service* token presented at the decision
-> endpoint when one is configured is still 403'd — the engine is never allowed to decide.
+> endpoint is still held to the per-gate carve-out — it may only auto-approve Gate 2, and is 403'd
+> on any change/reject or on Gate 1 / Gate 3.
 
 ## The run lifecycle / phases
 
@@ -130,9 +141,10 @@ new → gate1 → build → gate2 → verify → done
 - **build** — implement in an isolated worktree, run the isolation check, run the dependency
   optional dependency guard (if configured), deploy to evolve-test, validate live. Ends by
   pushing **Gate 2**.
-- **gate2** — parked for the *result* decision. `approve` → merge to the staging branch,
-  push, run an automated pre-verify on the test host, then push **Gate 3**; `change` →
-  re-implement; `reject` → `rejected`.
+- **gate2** — the **automated validate gate**, not an operator wait. On a green validation the loop
+  auto-approves it itself (`decided_by=auto`) → merge to the staging branch, push, run an automated
+  pre-verify on the test host, then push **Gate 3**. A red validation loops back to re-implement;
+  nothing is published.
 - **verify** — parked for the *human* decision on evolve-uat. `approve` (✓works) → close the
   GitHub issue → `done`; `change` (✗broken) → resume the same run (localized bug →
   re-implement → Gate 2; wrong approach → re-design → Gate 1); `reject` → abandon.

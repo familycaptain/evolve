@@ -81,15 +81,13 @@ flowchart TD
   deploy --> validate["Validate on evolve-test (Playwright)"]:::box2
   validate --> gw_tests{"tests green?"}:::gw
   gw_tests -->|"failing, retry within budget"| impl
-  gw_tests -->|"stuck, escalate"| gate2
+  gw_tests -->|"stuck / can't pass → operator re-approach"| gate1
   gw_tests -->|green| packet["Result review — Arch · UX · Interop · Security describe what changed + Lead verdict"]:::agent
   validate -. "📷 after / fix proof" .-> gh_issue
   packet --> gate2
 
-  gate2[/"GATE 2 — approve result"/]:::gate
-  gate2 -->|"change this"| impl
-  gate2 -->|reject| e_rejected
-  gate2 -->|approve| merge[["Auto-merge to the staging branch"]]:::sys
+  gate2[["GATE 2 — VALIDATE · AUTOMATED<br/>loop auto-approves on green validation (decided_by=auto)"]]:::sys
+  gate2 --> merge[["Auto-merge to the staging branch"]]:::sys
   merge --> resync[["Re-sync files to DB"]]:::sys
   resync --> g3deploy[["evolve-uat (tracks the staging branch): deploy via the deploy command ($EVOLVE_DEPLOY_CMD)"]]:::sys
   g3deploy --> gate3[/"GATE 3 — verify: operator + PM test it live on evolve-uat"/]:::gate
@@ -98,12 +96,11 @@ flowchart TD
   gate3 -->|"✗ code bug (spec still valid) → resume"| impl
   gate3 -->|"✗ approach wrong → rewrite spec → re-review"| l_design
 
-  %% The operator's PM — the human-in-the-loop's AI partner, present at EVERY gate.
+  %% The operator's PM — the human-in-the-loop's AI partner, present at the TWO operator gates (1 & 3).
   %% Distinct from the autonomous swarm: it reads each packet, surfaces the real decision, pushes
-  %% back, and OPERATES the gate on the operator's explicit say-so (the agents cannot decide).
-  PM{{"🤖 Operator's PM — reads every packet · surfaces the real decision in plain language · pushes back on thin validation / code-read-not-reproduced conclusions · answers questions · OPERATES the gate on the operator's explicit say-so (agents CANNOT decide) · runs the watcher that keeps items moving"}}:::pm
+  %% back, and OPERATES those gates on the operator's explicit say-so (the agents cannot decide them).
+  PM{{"🤖 Operator's PM — reads every packet · surfaces the real decision in plain language · pushes back on thin validation / code-read-not-reproduced conclusions · answers questions · OPERATES the TWO operator gates on the operator's explicit say-so (agents CANNOT decide requirements or UAT) · runs the watcher that keeps items moving"}}:::pm
   PM -. "review + operate · on say-so" .-> gate1
-  PM -. "review + operate · on say-so" .-> gate2
   PM -. "verify + operate · on say-so" .-> gate3
 
   classDef event fill:#e8eef7,stroke:#5b7aa7,color:#1b2b44;
@@ -170,9 +167,12 @@ flowchart TD
   agent (the Lead included) emits a plain-language `summary` and gets its own UI panel.
 - **Gate 1** (approve intent) → autonomous **implement + author tests** on the evolve-brain
   branch → **evolve-test** validates with Playwright → loop **failing→retry** / **stuck→
-  escalate** / **green→packet** → **Gate 2** → **auto-merge to the staging branch**
-  → **re-sync**. Both gates can **bounce back** ("change this").
-- **Every gate has a human-in-the-loop *and their PM*.** A gate is not the operator alone
+  escalate** / **green→packet** → **Gate 2 (validate — AUTOMATED: the loop auto-approves on green,
+  `decided_by=auto`)** → **auto-merge to the staging branch** → **re-sync**. Gate 1 can **bounce back**
+  ("change this"); a red validation instead loops Gate 2 back to implement on its own — nothing publishes.
+- **Every _operator_ gate (Gate 1 and Gate 3) has a human-in-the-loop *and their PM*.** (Gate 2,
+  validate, is automated — the loop auto-approves it on green, with no operator and no PM.) An operator
+  gate is not the operator alone
   clicking approve/change/reject — between the swarm's packet and the decision sits the **operator's
   PM** (a Claude instance on the dashboard on evolve-admin). It **reads each packet**, restates the
   *real* decision in plain language (not the terse button labels), **flags what the packet underplays**
@@ -209,7 +209,7 @@ flowchart TD
     branch cut from evolve-brain's staging branch. **evolve-test** is the disposable test target: it
     *pulls* the feature branch from evolve-brain (evolve-test's git origin **is** evolve-brain) and runs
     the bound tests — it never builds or merges.
-  - On Gate-2 approve, evolve-brain merges `feature → $EVOLVE_STAGING_BRANCH` (local) and **pushes
+  - On the green Gate-2 auto-approval, evolve-brain merges `feature → $EVOLVE_STAGING_BRANCH` (local) and **pushes
     the staging branch** to origin.
   - **evolve-uat tracks the staging branch**: the deploy command (`$EVOLVE_DEPLOY_CMD`, a plain
     `git pull`) deploys the candidate so the operator + PM verify *exactly what will ship*.

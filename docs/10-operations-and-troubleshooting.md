@@ -23,16 +23,18 @@ tells you exactly what state it's in and who it's waiting on.
 
 | State | What it means | What *you* do |
 |---|---|---|
-| **Waiting at a gate** (`gate1` / `gate2` / `verify`, with no decision yet) | The swarm is done with this segment and has **parked** the item on you. The loop is *not* blocked — it's working other items. | **Decide it.** Review the packet in the dashboard (your PM helps), then Approve / Change / Reject. The item is correctly idle until you act — it is not stuck. |
+| **Waiting at a gate** (`gate1` / `verify`, with no decision yet) | The swarm is done with this segment and has **parked** the item on you at one of the **two operator gates**. The loop is *not* blocked — it's working other items. | **Decide it.** Review the packet in the dashboard (your PM helps), then Approve / Change / Reject. The item is correctly idle until you act — it is not stuck. |
+| **Auto-validating** (`gate2`) | The build passed on the test host; the loop **auto-approves the validate gate itself** (`decided_by=auto`) and is merging to staging + opening Gate 3. Not an operator wait. | **Nothing** — the loop owns this gate. A red validation instead loops back to re-implement; nothing publishes. |
 | **Building** (`build`, or `new` actively running) | An agent segment is in progress (implementing, validating, running the spec phase). | **Let it run.** Watch the live agent feed in the dashboard. Don't intervene mid-segment. |
 | **Stranded mid-build** (`new` or `build` with **no** pending decision and no agent active) | A pass was interrupted *during* the segment — the session ended or hit a usage limit mid-work, so the item froze (e.g. a run stuck at "building" after the build pass died mid-implement). | **Nothing** — the loop self-heals. The next pass detects it (`evolve_runs.py stranded` returns exactly the `new`/`build` dirs) and **resumes it from its files** (see §2). If it never moves, see §6. |
 | **Rejected** (`rejected`) | You rejected it at a gate (or triage rejected junk). Terminal. The worktree is torn down. | Nothing. To revisit, re-file the issue. |
 | **Parked** (`parked`) | Prioritize set it aside as the long tail (below the surface threshold). Terminal until re-surfaced. | Nothing required. It's recorded, not lost. |
 | **Done** (`done`) | Verified working; the GitHub issue is closed. Terminal. | Nothing. The loop closed it. |
 
-The key distinction: **a phase `gate1`/`gate2`/`verify` with no decision is *parked on
-you*, not stranded** — the loop must never "resume" those (it would duplicate a gate). Only
-`new`/`build` without a live agent is genuinely stranded mid-segment.
+The key distinction: **a phase `gate1`/`verify` with no decision is *parked on
+you*, not stranded** — the loop must never "resume" those (it would duplicate an operator gate).
+`gate2` is loop-owned (auto-approved on green, never a human wait), and only `new`/`build` without a
+live agent is genuinely stranded mid-segment.
 
 ---
 
@@ -138,9 +140,11 @@ python3 scripts/evolve_decide.py <id> reject  "reason"
 This is the whole security model: `evolve_decide.py` uses `EVOLVE_DECIDE_TOKEN`, a
 **parent-role** token set in `.env` **only on your assistant machine.** It is *never* placed
 on the brain machine / the autonomous loop, which holds only the **service** token. The
-service token can *post* gates but **cannot decide them** — so **the engine cannot decide
-its own gates.** Only you (via your assistant) can. The decision is recorded as the
-operator. (See [Architecture](02-architecture.md) for the two-token split.)
+service token can *post* gates and **auto-approve the validate gate (Gate 2) on green**, but it can
+**never** decide the two operator gates — so **the engine cannot self-approve requirements (Gate 1) or
+UAT (Gate 3).** Only you (via your assistant) can. The operator decision is recorded as the
+operator; the automated Gate-2 approval is recorded as `decided_by=auto`. (See
+[Architecture](02-architecture.md) for the two-token split.)
 
 ---
 
@@ -167,7 +171,8 @@ operator. (See [Architecture](02-architecture.md) for the two-token split.)
 **A decision is rejected with `403`.**
 - The token at the decision endpoint is wrong, missing, or lacks the admin/parent role. The
   most common cause is trying to decide with the **service token** (the brain's token) —
-  that token is intentionally forbidden from deciding. Use `evolve_decide.py` with
+  that token is intentionally forbidden from deciding the operator gates (it may only
+  auto-approve Gate 2). Use `evolve_decide.py` with
   `EVOLVE_DECIDE_TOKEN` set in `.env` **on your operator machine**. If `EVOLVE_DECIDE_TOKEN`
   is unset, the script refuses up front and tells you to mint a parent-role token.
 

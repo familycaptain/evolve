@@ -51,6 +51,8 @@ def main():
     sub.add_parser("pending")  # bulk: EVERY item with a live operator decision, in ONE dashboard call
     sub.add_parser("stranded")  # local: ONLY run dirs stranded mid-segment (phase new|build)
     rs = sub.add_parser("resolve"); rs.add_argument("iid"); rs.add_argument("status")
+    aa = sub.add_parser("autoapprove"); aa.add_argument("iid")
+    aa.add_argument("note", nargs="?", default="Auto-approved: validation GREEN on the test host. (Evolve)")
     c = sub.add_parser("close"); c.add_argument("iid"); c.add_argument("comment", nargs="?", default="")
     sub.add_parser("flush")   # drain the offline outbox to the dashboard now (no-op if empty / dashboard down)
     a = ap.parse_args()
@@ -86,9 +88,13 @@ def main():
                            "decision": x.get("decision"), "note": x.get("note")} for x in items]))
     elif a.cmd == "stranded":
         # Local scan of $EVOLVE_STATE_DIR/*/state.json returning ONLY dirs stranded MID-SEGMENT — phase
-        # `new` or `build` (a pass died before the segment finished). Filtered HERE so the loop never
-        # reads all N state.json files into context; it ingests only the few stranded ids. Terminal
-        # (done/rejected) and operator-PARKED (gate1/gate2/verify) phases are excluded — not stranded.
+        # `new`, `build`, or `gate2` (a pass died before the segment finished). Filtered HERE so the loop
+        # never reads all N state.json files into context; it ingests only the few stranded ids. Terminal
+        # (done/rejected) and OPERATOR-parked (gate1/verify — your two gates) phases are excluded. `gate2`
+        # is LOOP-owned (auto-approved on green validation), NOT parked on the operator, so a gate2 left
+        # with no recorded auto-approval IS stranded — resume it (re-run autoapprove → merge). A gate2
+        # that WAS auto-approved surfaces in `pending` first (decided), which the loop handles ahead of
+        # this scan, so it's merged there and never lingers here.
         # O(stranded), not O(all-runs-ever); tiny metadata only, never packet contents.
         import glob
         base = os.path.expanduser(os.getenv("EVOLVE_STATE_DIR") or "~/.evolve/runs")
@@ -98,7 +104,7 @@ def main():
                 st = json.load(open(sf))
             except Exception:
                 continue
-            if st.get("phase") in ("new", "build"):
+            if st.get("phase") in ("new", "build", "gate2"):
                 out.append({"instance_id": st.get("instance_id"), "phase": st.get("phase")})
         print(json.dumps(out))
     elif a.cmd == "resolve":
@@ -114,6 +120,11 @@ def main():
         if run_status:
             bridge.report_run(a.iid, status=run_status, phase=phase)
         print(out)
+    elif a.cmd == "autoapprove":
+        # Gate-2 (validate) AUTO-APPROVAL on green validation — the two-token carve-out.
+        # The dashboard permits the service token to approve gate 2 ONLY (403 for gate 1/3),
+        # recorded as decided_by='auto'. The loop then merges + pushes release + opens Gate 3.
+        print(bridge.decide(a.iid, "approve", a.note))
     elif a.cmd == "close":
         # close the loop — only after the operator verifies the shipped change works
         from engine import github_connector as gh
