@@ -28,6 +28,14 @@ only thing that's *yours* is the [charter](./docs/05-the-charter.md) (what your 
 4. **A target adapter** — how to deploy and test *your* project (the one project-specific bit of
    automation).
 
+> **A Claude Code plan sized to how hard you'll run it.** Evolve *is* a Claude Code agent swarm — the
+> `/loop` engine, the swarm of agents it spawns, and the `/evolve-pm` assistant all run on **your Claude
+> subscription** and consume usage continuously. For a **continuous loop or a serious install, the Max
+> plan is strongly recommended** — it's what gives you enough usage headroom to keep the loop running
+> without constantly hitting limits. Smaller plans (e.g. Pro) are fine for **trying Evolve out** or a
+> light, hands-on cadence, but a real always-on install will outrun them. Budget your plan to how hard
+> you intend to run it.
+
 ## Architecture
 
 ```mermaid
