@@ -438,13 +438,29 @@ function columnForRun(r) {
   return "new";
 }
 
+// a signature of the board's MEANINGFUL state — so a poll that changes nothing does NOT
+// rebuild the DOM (which would reset every column's scroll position on each refresh).
+function boardSig() {
+  return state.runs.map(r => {
+    const g = gateForRun(r.instance_id);
+    return r.instance_id + ":" + columnForRun(r) + ":" +
+      (g ? g.status + "/" + (g.decision || "") + "/" + (g.decided_by || "") : "");
+  }).join("|");
+}
+
 function renderBoard() {
   const board = document.getElementById("board");
+  // preserve per-column vertical scroll + the board's horizontal scroll across a rebuild
+  const prevScroll = {}, prevLeft = board.scrollLeft || 0;
+  board.querySelectorAll(".column").forEach(col => {
+    const b = col.querySelector(".col-body");
+    if (col.dataset.col && b) prevScroll[col.dataset.col] = b.scrollTop;
+  });
   board.textContent = "";
   const byCol = {}; for (const c of COLUMNS) byCol[c.key] = [];
   for (const r of state.runs) byCol[columnForRun(r)].push(r);
   for (const c of COLUMNS) {
-    const col = el("div", { class: "column" });
+    const col = el("div", { class: "column", "data-col": c.key });
     col.append(el("div", { class: "col-head" },
       el("span", { class: "dot " + c.key }),
       el("span", { class: "cname", text: c.name }),
@@ -455,6 +471,13 @@ function renderBoard() {
     col.append(body);
     board.append(col);
   }
+  // restore scroll after the board is fully laid out
+  board.querySelectorAll(".column").forEach(col => {
+    const b = col.querySelector(".col-body");
+    if (b && prevScroll[col.dataset.col] != null) b.scrollTop = prevScroll[col.dataset.col];
+  });
+  board.scrollLeft = prevLeft;
+  state.lastBoardSig = boardSig();
 }
 
 function renderCard(r) {
@@ -480,7 +503,9 @@ async function loadRuns() {
   if (state.repo) q.set("repo", state.repo);
   const data = await apiJson("/runs?" + q.toString());
   state.runs = data.runs || [];
-  renderBoard();
+  // only rebuild the board when its meaningful state changed — a no-op poll must not
+  // disturb the columns you're scrolled into.
+  if (boardSig() !== state.lastBoardSig) renderBoard();
 }
 
 async function loadGates() {
