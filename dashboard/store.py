@@ -128,13 +128,16 @@ class Store:
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?,
                         COALESCE(?, 0), COALESCE(?, 0), ?)
                 ON CONFLICT(instance_id) DO UPDATE SET
-                    repo          = COALESCE(excluded.repo,          run.repo),
-                    title         = COALESCE(excluded.title,         run.title),
-                    source        = COALESCE(excluded.source,        run.source),
-                    phase         = COALESCE(excluded.phase,         run.phase),
-                    status        = COALESCE(excluded.status,        run.status),
-                    current_agent = COALESCE(excluded.current_agent, run.current_agent),
-                    current_node  = COALESCE(excluded.current_node,  run.current_node),
+                    -- NULLIF(..., '') so an EMPTY-STRING field (report_run defaults every text
+                    -- field to "") is treated as "no update" and preserves the stored value —
+                    -- otherwise a partial report (status/events only) blanks phase/title/etc.
+                    repo          = COALESCE(NULLIF(excluded.repo, ''),          run.repo),
+                    title         = COALESCE(NULLIF(excluded.title, ''),         run.title),
+                    source        = COALESCE(NULLIF(excluded.source, ''),        run.source),
+                    phase         = COALESCE(NULLIF(excluded.phase, ''),         run.phase),
+                    status        = COALESCE(NULLIF(excluded.status, ''),        run.status),
+                    current_agent = COALESCE(NULLIF(excluded.current_agent, ''), run.current_agent),
+                    current_node  = COALESCE(NULLIF(excluded.current_node, ''),  run.current_node),
                     cost_usd      = COALESCE(?,                       run.cost_usd),
                     archived      = COALESCE(?,                       run.archived),
                     updated_at    = excluded.updated_at

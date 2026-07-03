@@ -325,7 +325,8 @@ shape the UI panels render** (so the operator sees the ACTUAL spec + reviews, no
   whose `why` tells the operator exactly what to deploy + test (`gate: "gate3"`). The UI relabels
   the buttons to ✓Works / Still-broken / Abandon automatically.
 Then:
-1. `python3 scripts/evolve_runs.py run ev-<n> --status waiting`
+1. `python3 scripts/evolve_runs.py run ev-<n> --status waiting --phase <gate1|gate2>` (report the phase = the
+   gate you're about to push, so the dashboard places the card in the right column — never omit `--phase`).
 2. `python3 scripts/evolve_runs.py gate ev-<n> <gate1|gate2> $EVOLVE_STATE_DIR/<id>/<gate>.json`  → shows in the UI.
 3. Set the item's `phase` in `state.json` and **END the pass.** Do NOT wait, sleep, or poll — the
    operator decides on their own time, and a *future* pass (step 1a) picks the decision up. After you
