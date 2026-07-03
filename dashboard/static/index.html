@@ -111,7 +111,8 @@
       padding: 9px 11px; cursor: pointer; display: flex; flex-direction: column; gap: 6px; }
     .card:hover { border-color: var(--accent-dim); background: #182030; }
     .card.wait { border-color: #5c4708; box-shadow: 0 0 0 1px rgba(210,153,34,.25); }
-    .card .ctitle { font-weight: 600; font-size: 13px; line-height: 1.35; }
+    .card .ctitle { font-weight: 600; font-size: 13px; line-height: 1.35;
+      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
     .card .cmeta { font-family: var(--mono); font-size: 11px; color: var(--txt-faint); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     .card .cmeta .iid { color: var(--txt-dim); }
     .card .cflag { align-self: flex-start; }
@@ -480,17 +481,25 @@ function renderBoard() {
   state.lastBoardSig = boardSig();
 }
 
+// the best human title for a run: the run's own title, else the gate packet's work-item
+// title (the run row's `title` is often empty; the real title lives on the gate), else the id.
+function runTitle(r) {
+  const g = gateForRun(r.instance_id);
+  return r.title
+    || (g && (g.title || (((g.packet || {}).work_item || {}).title)))
+    || r.instance_id;
+}
+
 function renderCard(r) {
   const gate = gateForRun(r.instance_id);
   const waiting = gate && gate.status === "waiting";
   const card = el("div", { class: "card" + (waiting ? " wait" : ""),
     onclick: () => selectRun(r.instance_id) });
-  card.append(el("div", { class: "ctitle", text: r.title || r.instance_id }));
+  card.append(el("div", { class: "ctitle", text: runTitle(r) }));
   if (waiting) card.append(el("span", { class: "cflag waiting-badge", text: "⚠ waiting on you" }));
   else if (gate && gate.decision) card.append(el("span", { class: "cflag decided-badge", text: "✓ " + decisionLabel(gate) }));
   const meta = el("div", { class: "cmeta" });
-  meta.append(el("span", { class: "iid", text: r.instance_id }));
-  if (r.repo) meta.append(el("span", { text: r.repo }));
+  meta.append(el("span", { class: "iid", text: r.instance_id }));   // repo lives in the modal, not the card
   const ch = runChip(r);
   meta.append(el("span", { class: "chip " + esc(ch.cls), text: ch.text }));
   card.append(meta);
@@ -611,6 +620,7 @@ function selectRun(id) {
   state.lastEventId = 0;
   openModal();
   renderDetail();
+  document.getElementById("modalBody").scrollTop = 0;   // a freshly-opened item always starts at the top
   restartEventPolling();
 }
 
@@ -618,6 +628,7 @@ function selectRun(id) {
 function renderDetail() {
   const body = document.getElementById("modalBody");
   const titleEl = document.getElementById("modalTitle");
+  const prevTop = body.scrollTop;   // preserve reading position across an in-place refresh
   body.textContent = "";
   state.mainSig = currentMainSig();
   const r = state.runs.find(x => x.instance_id === state.selectedId);
@@ -626,7 +637,7 @@ function renderDetail() {
     body.append(el("div", { class: "empty" }, el("div", { text: "This item is no longer in the list." })));
     return;
   }
-  titleEl.textContent = r.title || r.instance_id;
+  titleEl.textContent = runTitle(r);
 
   // status + archive row
   const head = el("div", { class: "panel-head" });
@@ -667,6 +678,7 @@ function renderDetail() {
   if (bar.children.length) body.append(bar);
 
   renderTail();
+  body.scrollTop = prevTop;   // keep the reader where they were on a refresh (selectRun forces 0 on a fresh open)
 }
 
 //---------------------------- gate review ----------------------------------
