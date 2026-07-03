@@ -434,18 +434,19 @@ function columnForRun(r) {
   const ph = (r.phase || "").toLowerCase(), st = (r.status || "").toLowerCase();
   // terminal states
   if (ph === "done" || ph === "rejected" || st === "merged" || st === "rejected") return "closed";
-  // A WAITING gate authoritatively places the item where the operator is needed — trust it
-  // over a stale/empty run.phase (the run row's phase can lag behind the pushed gate, which
-  // otherwise dumps a gate-1-waiting item into New).
+  // If the run phase has genuinely advanced to a working stage, honor it (the loop moved it forward).
+  if (ph === "build") return "build";
+  if (ph === "gate2") return "validate";
+  if (ph === "verify") return "uat";
+  // Otherwise place by the gate — whether it's WAITING or DECIDED. This keeps a just-approved
+  // gate-1 item in Requirements (now showing "approved") until the loop actually advances its
+  // phase to build, instead of dumping it into New on a stale/empty run.phase.
   const g = gateForRun(r.instance_id);
-  if (g && g.status === "waiting") {
-    const gk = (g.gate || "").toLowerCase();
-    if (gk === "gate1") return "requirements";
-    if (gk === "gate2") return "validate";
-    if (gk === "gate3") return "uat";
-  }
-  // otherwise map by run phase (require non-empty so "" doesn't fall into New via the column list)
-  for (const c of COLUMNS) if (ph && c.phases.includes(ph)) return c.key;
+  const gk = g ? (g.gate || "").toLowerCase() : "";
+  if (gk === "gate1") return "requirements";
+  if (gk === "gate2") return "validate";
+  if (gk === "gate3") return "uat";
+  if (ph === "gate1") return "requirements";
   if (st === "building") return "build";
   return "new";
 }
