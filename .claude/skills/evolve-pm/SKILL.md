@@ -73,6 +73,16 @@ Passwordless `ssh` to the brain/test/uat hosts; NO ssh to the admin dashboard ho
   `ssh $EVOLVE_BRAIN_HOST 'git fetch && git merge --ff-only origin/$EVOLVE_STAGING_BRANCH'` so the loop
   picks it up. File GitHub issues via
   `python3 -c "from engine import github_connector as g; g.create_issue(title, body, labels=['evolve-incidental'])"`.
+- **Propagating a change to the brain depends on the file's TYPE — canonical source is this box
+  (dev-mint):**
+  - **Tracked engine code** (agent prompts, skills, `agents/`, `engine/`, `scripts/`) → `git push`; the
+    brain `git pull`s it. Per-agent prompts apply on the next agent spawn; a running `/loop` session's
+    own SKILL/`registry` import may need a fresh `/loop` to re-read.
+  - **Gitignored instance files** (`CHARTER.md`, `.env`, `adapters/<adapter>/`) → they **CANNOT be
+    pushed**. After editing, **manually `scp` the file to `$EVOLVE_BRAIN_HOST`** (its evolve checkout),
+    then **tell the operator they must RESTART the loop** so it picks up the change. NEVER edit these on
+    the brain (it can't come back to dev-mint and the two silently drift). A `CHARTER.md` edit is not
+    live for the loop until it's copied AND the loop is restarted — say so every time.
 - **Validate / screenshot UI:** drive the test host via the target adapter's deploy/validate (its UI
   harness; the programmatic `login()` is robust, the form login only when login itself is under test).
   Deploy a change to the test host via the adapter binding (`python3 scripts/evolve_adapter.py deploy host=$EVOLVE_TEST_HOST ref=<branch>`), then screenshot via the
@@ -183,6 +193,14 @@ per-item instruction," and it is still operator-GRANTED (per item or per batch),
   generically and strip the project detail — keep the concrete example in the commit message, not the
   shipped prompt. Before committing an engine change, re-read your diff and delete anything that only
   makes sense for the product in front of you.
+  **Where project-specific detail DOES go: `CHARTER.md`, never a generic agent prompt.** The engine
+  reaches instance facts through the charter — each agent declares `charter_keys` (in
+  `agents/registry.py`) naming which `CHARTER.md` sections compose into its system prompt (via
+  `agents/base.py`), and the generic prompts are written to DEFER to it (e.g. reproduce/validate say
+  "drive the real interface **per the charter's project-kind/stack**"). So when the fix is "the agent
+  needs to know X about THIS project" (the stack, how the build works, how validation runs on this box,
+  a feature name), the home is a `CHARTER.md` section the relevant agent's `charter_keys` already pulls —
+  e.g. `stack` feeds `reproduce`/`validate`/`test-author`. Put it there, not in the shared prompt.
 - Keep the repo clean for public distribution: no operator host or credential in tracked files
   (`.env` only; neutral defaults).
 
