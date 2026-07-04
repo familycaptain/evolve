@@ -166,9 +166,13 @@ Pick **ONE** item, run its segment below, then **END the pass** (do not start a 
   **(0b) `evolve-reproduce`** (orchestrator drives the test host, like validate): deploy current
   `$EVOLVE_STAGING_BRANCH` to the test host (`$EVOLVE_TEST_HOST`) via the adapter binding (`python3 scripts/evolve_adapter.py deploy host=$EVOLVE_TEST_HOST ref=$EVOLVE_STAGING_BRANCH`)
   (current pre-fix state, mock data), reproduce the reported symptom on the EXACT surface the issue
-  names, and **capture evidence in its native form** — a `page.screenshot` for anything involving a UI
-  (post via `attach_image_to_issue(<n>, …)`), or captured stdout/response/test output otherwise (post via
-  `post_comment`). Evidence is ALWAYS posted — never skipped because the change isn't visual.
+  names, and **capture evidence in its native form** — a `page.screenshot` for **any surface that
+  produces output a user could see on a screen** (a page, control, color, **chat message / rendered
+  bubble** — the pixels, not a text transcript; differently-sourced messages can read identically as text
+  yet render as distinct bubbles, which is often the whole bug), post via `attach_image_to_issue(<n>, …)`;
+  captured stdout/response/test output ONLY for a surface with zero user-visible output (post via
+  `post_comment`). Evidence is ALWAYS posted — never skipped; a user-visible surface without a rendered
+  screenshot is not validated (output-based test, not "is this a UI symptom?").
   `reproduced=no`/`inconclusive` → do NOT spec / do NOT invent a fix; push a **Gate 1** packet
   ("could not reproduce" + the evidence) for the operator (already fixed? steps unclear?
   environment-specific?), `phase=gate1`, **END**. `reproduced=yes` → carry `surface` (the PROVEN
@@ -232,8 +236,10 @@ Pick **ONE** item, run its segment below, then **END the pass** (do not start a 
   code+test) — that graduates it from unverified baseline to an authoritative, code-governing contract.
   **AFTER-EVIDENCE IS MANDATORY — do NOT push Gate 2 without it (symmetric with reproduce's
   before-evidence).** validate's output MUST carry a non-empty `evidence` list, and that evidence MUST be
-  POSTED to the GitHub issue: a UI screenshot via `attach_image_to_issue`, or — for a backend/API/CLI/
-  library change — the captured proof (API response, stdout, test transcript) via `post_comment`, fenced.
+  POSTED to the GitHub issue: a **rendered screenshot** via `attach_image_to_issue` for **any surface
+  that produces user-visible screen output** (including a chat message — the pixels, not a transcript),
+  or — ONLY for a surface with zero user-visible output (backend/API/CLI/library) — the captured proof
+  (API response, stdout, test transcript) via `post_comment`, fenced.
   Pair it with the gate-1 reproduce before-evidence so the issue carries the before→after the requester can
   see. If validate is GREEN but no evidence was captured+posted, the fix is **INCOMPLETE**: go back, capture
   it, post it, populate `evidence`, and only then proceed. A green verdict with an empty `evidence` is a FAIL.

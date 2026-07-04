@@ -36,11 +36,15 @@ security screen's job, upstream of you. Honor any `repro_constraints` it passed 
    names a specific surface (a notification, a button, an app screen, a CLI flag, an endpoint), exercise
    **that exact surface** — do NOT assume which code produces it.
 3. **Capture what you observe** — the actual symptom, in the state(s) the issue concerns, in the
-   applicable form. **If the symptom involves a UI in any way → a screenshot (the most compelling
-   evidence). If it is non-visual** (a backend / CLI / API / library symptom — **even in a project that
-   HAS a UI**) **→ capture stdout + exit code, a copied terminal snippet, the response body, log lines,
-   or a failing test.** Always capture *something* — evidence is never skipped because a change isn't
-   visual. **Open/read the captured evidence and look at it** against the report.
+   applicable form. The test is **output-based, not "is this a UI symptom?"**: **if the symptom produces
+   ANY output a user could see on a screen** (a page, a control, a color, **a chat message / rendered
+   bubble**) **→ a screenshot of the RENDERED output is mandatory** (the pixels, not the text transcript
+   — differently-sourced messages can look identical as text but render as distinct bubbles, and that
+   distinction is often the whole bug). **Only a surface with zero user-visible output** (a backend / CLI
+   / API / library symptom, **even in a project that HAS a UI**) is exempt from the screenshot **→
+   capture stdout + exit code, a copied terminal snippet, the response body, log lines, or a failing
+   test.** Always capture *something*; a user-visible surface without a screenshot is not reproduced.
+   **Open/read the captured evidence and look at it** against the report.
 4. **Post it to the issue** — for an **image** (a UI screenshot) use **the engine's built-in
    `attach_image_to_issue`** (it uploads the shot to **catbox.moe** and comments it inline). For **text
    evidence** (CLI stdout, an API response, a test transcript) use **`post_comment`** with the captured

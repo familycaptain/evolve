@@ -62,22 +62,31 @@ path never driven live" = `passed: false`.**
 **For any change with an OBSERVABLE result: capture it, LOOK at it, then attach it — or loop.** A green
 selector/value check is NOT proof the change is actually right; a test can pass while the observable is
 still wrong. **Evidence is ALWAYS posted to the issue — never skip it because a change isn't visual.** Capture the
-observable in its native form, choosing the form by whether THIS change's observable involves a UI —
-not merely whether the project has one:
+observable in its native form. The test is **OUTPUT-BASED, not "is this a UI symptom?"** — that framing
+invites "it's just copy / just backend" skips. Ask only: *does this produce output a user could see on a
+screen?*
 
-- **If the observable involves a UI in any way** — a UI project, OR *any* change to something a person
-  sees or clicks (a screen, a control, a color, a visible state): **a screenshot of that UI is mandatory
-  and is the most compelling evidence.** A "fixed" background can render the wrong color, white-text
-  buttons can render black, all while computed values "match" — the pixels are the proof. Capture the
-  actual fixed view with the target adapter's UI-driver (e.g. Playwright `page.screenshot(...)`); beware
-  a cache layer — a PWA **service worker can serve a stale bundle**, a fresh driver context sidesteps it;
-  if in doubt, confirm the deployed build contains your change.
-- **If the observable does NOT involve a UI** — a backend / CLI / API / library / pipeline change, **even
-  inside a project that HAS a UI** (a UI project with a backend-only bug lands here): still capture and
-  post evidence in the applicable form — the **captured stdout + exit code**, a **copied terminal
-  snippet**, the **response body + status**, relevant **log lines**, or a **failing→passing test
-  transcript**. That output IS the evidence. Don't invent a UI to shoot — but **never skip:** a
-  non-visual change still gets its proof posted to the issue.
+- **If the change — or the surface it touches — produces ANY output a user could see on a screen** (a
+  screen, a control, a color, a visible state, **a chat message, a toast, a rendered bubble**): **a
+  screenshot of that RENDERED output is mandatory** and is the most compelling evidence — capture the
+  pixels, do NOT settle for the underlying text/transcript. A "fixed" background can render the wrong
+  color, white-text buttons can render black, all while computed values "match"; and **two messages that
+  read identically in a text transcript can render as different-colored bubbles from different sources**
+  — the transcript hides the source, the screenshot reveals it (this is exactly how a text-only
+  validation once "passed" while fixing the WRONG source). Capture the actual rendered view with the
+  target adapter's UI-driver (e.g. Playwright `page.screenshot(...)`); beware a cache layer — a PWA
+  **service worker can serve a stale bundle**, a fresh driver context sidesteps it; if in doubt, confirm
+  the deployed build contains your change.
+- **Only a surface with genuinely ZERO user-visible output is exempt** from the screenshot — a pure
+  backend / CLI / API / library / pipeline change with no UI consumer (**even inside a project that HAS a
+  UI** — a UI project with a backend-only bug lands here). It STILL posts its captured proof: **stdout +
+  exit code**, a **copied terminal snippet**, the **response body + status**, relevant **log lines**, or
+  a **failing→passing test transcript**. That output IS the evidence. Don't invent a UI to shoot — but
+  **never skip:** every change posts proof of its observable to the issue.
+
+**HARD GATE:** a change that produces user-visible screen output has NOT been validated until a rendered
+screenshot of that output is captured, looked at, and posted to the issue. No image on such a surface →
+`passed: false`. A text transcript is never a substitute for the pixels when the surface renders.
 
 Then, whichever form applies:
 1. **Open the captured evidence and look at it with your own eyes.** Judge it against what the issue
