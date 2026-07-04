@@ -167,6 +167,35 @@ async def get_runs(archived: int = 0, repo: str | None = None):
     return {"runs": store.list_runs(archived=bool(archived), repo=repo)}
 
 
+# The intake backlog: admissible open issues the loop hasn't STARTED yet (no run exists), so the
+# board can show filed-but-not-yet-started work instead of it being invisible until the loop picks
+# it up. Each refresh hits GitHub (via engine.intake), so cache it ~60s. The frontend filters out
+# any that already have a run by matching `source`, so this just returns the raw admissible set.
+_intake_cache: dict = {"at": 0.0, "data": None}
+
+
+@app.get(PREFIX + "/intake")
+async def get_intake():
+    import time as _t
+    now = _t.time()
+    if _intake_cache["data"] is not None and (now - _intake_cache["at"]) < 60:
+        return {"pending": _intake_cache["data"]}
+    try:
+        from engine import intake as _intake
+        pending = []
+        for i in _intake.all_admissible_issues():
+            repo, num = i.get("repo"), i.get("number")
+            if not repo or num is None:
+                continue
+            pending.append({"repo": repo, "number": num, "title": i.get("title", ""),
+                            "source": f"github:{repo}#{num}"})
+        _intake_cache["at"], _intake_cache["data"] = now, pending
+        return {"pending": pending}
+    except Exception:
+        # never break the board on an intake/GitHub hiccup — serve the last good list (or empty)
+        return {"pending": _intake_cache["data"] or []}
+
+
 @app.get(PREFIX + "/runs/{instance_id}/events")
 async def get_run_events(instance_id: str, since: int = 0):
     return {"events": store.events(instance_id, since=since)}

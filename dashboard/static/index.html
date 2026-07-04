@@ -112,6 +112,8 @@
     .card:hover { border-color: var(--accent-dim); background: #182030; }
     .card.wait { border-color: #5c4708; box-shadow: 0 0 0 1px rgba(210,153,34,.25); }
     .card.parked { opacity: .58; border-style: dashed; }   /* deferred backlog — reads as set-aside */
+    .card.queued { opacity: .5; border-style: dotted; cursor: default; }  /* filed, not started yet */
+    .card.queued:hover { border-color: var(--border); background: var(--panel); }
     .card .ctitle { font-weight: 600; font-size: 13px; line-height: 1.35;
       display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
     .card .cmeta { font-family: var(--mono); font-size: 11px; color: var(--txt-faint); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
@@ -455,11 +457,12 @@ function columnForRun(r) {
 // a signature of the board's MEANINGFUL state — so a poll that changes nothing does NOT
 // rebuild the DOM (which would reset every column's scroll position on each refresh).
 function boardSig() {
-  return state.runs.map(r => {
+  const runs = state.runs.map(r => {
     const g = gateForRun(r.instance_id);
     return r.instance_id + ":" + columnForRun(r) + ":" +
       (g ? g.status + "/" + (g.decision || "") + "/" + (g.decided_by || "") : "");
   }).join("|");
+  return runs + "||intake:" + (state.intake || []).map(i => i.source).join(",");
 }
 
 function renderBoard() {
@@ -474,13 +477,16 @@ function renderBoard() {
   const byCol = {}; for (const c of COLUMNS) byCol[c.key] = [];
   for (const r of state.runs) byCol[columnForRun(r)].push(r);
   for (const c of COLUMNS) {
+    const queued = c.key === "new" ? (state.intake || []) : [];   // filed-but-not-started sit atop New
+    const count = byCol[c.key].length + queued.length;
     const col = el("div", { class: "column", "data-col": c.key });
     col.append(el("div", { class: "col-head" },
       el("span", { class: "dot " + c.key }),
       el("span", { class: "cname", text: c.name }),
-      el("span", { class: "ccount", text: String(byCol[c.key].length) })));
+      el("span", { class: "ccount", text: String(count) })));
     const body = el("div", { class: "col-body" });
-    if (!byCol[c.key].length) body.append(el("div", { class: "col-empty", text: "—" }));
+    if (!count) body.append(el("div", { class: "col-empty", text: "—" }));
+    for (const it of queued) body.append(renderQueuedCard(it));
     for (const r of byCol[c.key]) body.append(renderCard(r));
     col.append(body);
     board.append(col);
@@ -529,6 +535,26 @@ async function loadRuns() {
   // only rebuild the board when its meaningful state changed — a no-op poll must not
   // disturb the columns you're scrolled into.
   if (boardSig() !== state.lastBoardSig) renderBoard();
+}
+
+// The intake backlog: filed issues the loop hasn't STARTED yet (no run). Show them as faint
+// "queued" cards in New so the board reflects the whole pipeline, not just started runs.
+async function loadIntake() {
+  try {
+    const data = await apiJson("/intake");
+    const started = new Set(state.runs.map(r => r.source).filter(Boolean));
+    state.intake = (data.pending || []).filter(i => !started.has(i.source));
+  } catch (e) { state.intake = state.intake || []; }
+}
+
+function renderQueuedCard(item) {
+  const card = el("div", { class: "card queued", title: "Filed — not started yet; the loop will pick it up" });
+  card.append(el("div", { class: "ctitle", text: item.title || ("#" + item.number) }));
+  const meta = el("div", { class: "cmeta" });
+  meta.append(el("span", { class: "iid", text: "#" + item.number }));
+  meta.append(el("span", { class: "chip", text: "queued" }));
+  card.append(meta);
+  return card;
 }
 
 async function loadGates() {
@@ -1208,6 +1234,8 @@ async function refreshAll() {
   try {
     await loadGates();
     await loadRuns();
+    await loadIntake();   // filed-but-not-started backlog (cached server-side); filter uses fresh state.runs
+    if (boardSig() !== state.lastBoardSig) renderBoard();   // re-render if the queued list changed the board
     // push-like auto-update: re-render the open packet only when its gate/phase actually changes
     // (so a parked gate appears with no manual refresh — and it never wipes in-progress input).
     // The board itself was re-rendered by loadRuns() above, so cards reflow columns every poll.
