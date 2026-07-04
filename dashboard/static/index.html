@@ -451,6 +451,10 @@ function columnForRun(r) {
   // merged + running the automated gate-3 pre-verify (phase flips to verify at merge, but the gate is
   // still gate2/shipped), it's the machine's work → keep it in Validate, not UAT-waiting-on-you.
   if (ph === "verify") return (gk === "gate3") ? "uat" : "validate";
+  // A run whose phase is already gate3 is at the operator's verify gate → UAT, placed by the RUN's
+  // phase ALONE. gate3 is the only gate stage with no phase-branch (gate1/gate2 have one), so without
+  // this a gate3 run that can't resolve its gate object (load order / stale gates) drops into New. (ev-76/79)
+  if (ph === "gate3") return "uat";
   // Otherwise place by the gate — whether WAITING or (approve/change) DECIDED — so a just-approved
   // gate-1 item stays in Requirements until the loop advances its phase, instead of dumping into New.
   if (gk === "gate1") return "requirements";

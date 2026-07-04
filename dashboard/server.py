@@ -362,7 +362,8 @@ async def revoke_admit(request: Request, authorization: str | None = Header(defa
 async def root():
     index = STATIC_DIR / "index.html"
     if index.exists():
-        return FileResponse(str(index))
+        # no-cache so board/JS updates take effect on the next load without a manual hard-refresh
+        return FileResponse(str(index), headers={"Cache-Control": "no-cache, must-revalidate"})
     return JSONResponse({"detail": "Evolve dashboard — SPA pending"})
 
 
