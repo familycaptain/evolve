@@ -207,6 +207,9 @@ Pick **ONE** item, run its segment below, then **END the pass** (do not start a 
   reports violations, the build introduced a structural break per that project's rule: include the
   violations PROMINENTLY in the Gate-2 packet as an architecture concern and set the Lead recommendation
   to `change` with the fix — never hand the operator a clean "approve" over a dependency-rule break.
+  **IMMEDIATELY before validating, report `run ev-<n> --status validating --phase gate2`** — this moves the
+  card into the **Validate** column so the operator sees it actively validating on the test host (not stuck
+  in Build), even though Gate 2 is automated and needs no operator action. Then run
   `evolve-validate` on the test host (`$EVOLVE_TEST_HOST`). **When validate is GREEN**, set `verified: true` on each spec the change
   proved with a passing bound test (edit the spec YAML in the worktree so it merges with the
   code+test) — that graduates it from unverified baseline to an authoritative, code-governing contract.
