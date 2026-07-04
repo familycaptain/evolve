@@ -113,7 +113,20 @@ GitHub issue stays OPEN until verified — an open issue means "not confirmed wo
   honors each repo's **intake mode**: `auto` returns every open issue (the default); `manual` returns ONLY
   issues a human admitted in the dashboard (so an untrusted / prompt-injection issue is never even read by
   an agent). Nothing returned for a manual repo is correct — nothing's admitted yet; treat as (d), don't bypass.
-- **d. Nothing ready** → say so and **END the pass** (the loop idles; the next pass re-checks).
+- **d. Else (idle) — DRAIN THE PARKED BACKLOG.** When (a)/(b)/(c) find nothing, don't just idle:
+  `python3 scripts/evolve_runs.py parked` returns phase=`parked` items by prioritizer **score** (highest
+  first) plus `promoted_waiting` (how many promoted-from-park items already sit at Gate 1). If
+  `promoted_waiting < 3` **and** the parked list is non-empty, **PROMOTE the highest-scored parked item**:
+  set its `state.json` `promoted_from_park=true` + `park_score=<score>`, then run its **SPEC PHASE** (the
+  segment below — it already has `triage.json`/`vision.json`/`prio.json`, so SKIP the funnel and go
+  straight to the spec phase, force-`surface`d, NEVER re-parked). At the Gate-1 push, prepend a prominent
+  recommendation note: **"⏸→ promoted from park (score `<n>`) — spec'd on idle capacity; reject if it's not
+  worth building."** This spends idle cycles turning the parked tail into reviewable Gate-1 plans; the
+  operator approves the worthwhile ones and rejects the rest (→ Closed), so the backlog **drains** instead
+  of piling up. The **cap (≤3 waiting)** keeps Gate 1 from flooding — once 3 promoted-park plans are
+  waiting, promote no more until the operator clears some.
+- **e. Nothing ready at all** (no decided gate, nothing stranded, no new issue, and no parked item to
+  promote — or the promote cap is full) → say so and **END the pass** (the loop idles; the next pass re-checks).
 
 Pick **ONE** item, run its segment below, then **END the pass** (do not start a second item).
 
@@ -137,7 +150,11 @@ Pick **ONE** item, run its segment below, then **END the pass** (do not start a 
   registry, pursue an in-scope reframe in a managed repo, or drop it); `phase=gate1`, **END**.
   Proceeding: bug **or** operator-authored → skip vision; external feature →
   `evolve-vision-fit` (`off-vision` → rejected, **END**, *public items only*). Then
-  `evolve-prioritize` → `park` → `phase=parked`, **END**; `surface` → run the **SPEC PHASE**, which now
+  `evolve-prioritize` → `park` → `phase=parked`, **END**; `surface` → run the **SPEC PHASE**. **Exception —
+  an item flagged `promoted_from_park`** (an idle-promoted parked item, step 1d): its funnel already ran
+  (triage/vision/prioritize artifacts exist — that's how it got parked), so **SKIP the funnel and go
+  straight to the SPEC PHASE, force-`surface`d — NEVER re-park it** — and carry the "promoted from park
+  (score `<n>`) — reject if not worth building" note forward so it surfaces at Gate 1. The **SPEC PHASE** now
   OPENS with empirical reproduction (reading code alone misattributes UI symptoms to the wrong code — a
   surface symptom can look identical whether it came from one subsystem or another; so we see what
   the USER sees FIRST, then ground in the code behind THAT):

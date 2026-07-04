@@ -49,7 +49,8 @@ def main():
     g.add_argument("iid"); g.add_argument("gate"); g.add_argument("packet_file")
     d = sub.add_parser("decision"); d.add_argument("iid")
     sub.add_parser("pending")  # bulk: EVERY item with a live operator decision, in ONE dashboard call
-    sub.add_parser("stranded")  # local: ONLY run dirs stranded mid-segment (phase new|build)
+    sub.add_parser("stranded")  # local: ONLY run dirs stranded mid-segment (phase new|build|gate2)
+    sub.add_parser("parked")    # local: phase=parked items by prioritizer score + promoted_waiting count
     rs = sub.add_parser("resolve"); rs.add_argument("iid"); rs.add_argument("status")
     aa = sub.add_parser("autoapprove"); aa.add_argument("iid")
     aa.add_argument("note", nargs="?", default="Auto-approved: validation GREEN on the test host. (Evolve)")
@@ -107,6 +108,32 @@ def main():
             if st.get("phase") in ("new", "build", "gate2"):
                 out.append({"instance_id": st.get("instance_id"), "phase": st.get("phase")})
         print(json.dumps(out))
+    elif a.cmd == "parked":
+        # Local scan for phase=`parked` items (the prioritizer's long-tail) with their prioritizer
+        # score, highest first — the idle-promote drains these into Gate 1 when the loop is otherwise
+        # idle. Also returns `promoted_waiting`: how many already-promoted-from-park items currently
+        # sit at Gate 1 (phase=gate1 + promoted_from_park), so the loop can honor the flood cap.
+        import glob
+        base = os.path.expanduser(os.getenv("EVOLVE_STATE_DIR") or "~/.evolve/runs")
+        parked, promoted_waiting = [], 0
+        for sf in glob.glob(os.path.join(base, "*", "state.json")):
+            try:
+                st = json.load(open(sf))
+            except Exception:
+                continue
+            ph = st.get("phase")
+            if ph == "parked":
+                score = 0
+                try:
+                    score = (json.load(open(os.path.join(os.path.dirname(sf), "prio.json"))).get("score") or 0)
+                except Exception:
+                    pass
+                parked.append({"instance_id": st.get("instance_id"), "score": score,
+                               "title": st.get("title", ""), "repo": st.get("repo", "")})
+            elif ph == "gate1" and st.get("promoted_from_park"):
+                promoted_waiting += 1
+        parked.sort(key=lambda x: x["score"], reverse=True)
+        print(json.dumps({"parked": parked, "promoted_waiting": promoted_waiting}))
     elif a.cmd == "resolve":
         out = bridge.resolve(a.iid, a.status)
         # Keep the run row in lockstep with the gate outcome so it can never be left "running"

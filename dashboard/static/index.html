@@ -111,6 +111,7 @@
       padding: 9px 11px; cursor: pointer; display: flex; flex-direction: column; gap: 6px; }
     .card:hover { border-color: var(--accent-dim); background: #182030; }
     .card.wait { border-color: #5c4708; box-shadow: 0 0 0 1px rgba(210,153,34,.25); }
+    .card.parked { opacity: .58; border-style: dashed; }   /* deferred backlog — reads as set-aside */
     .card .ctitle { font-weight: 600; font-size: 13px; line-height: 1.35;
       display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
     .card .cmeta { font-family: var(--mono); font-size: 11px; color: var(--txt-faint); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
@@ -505,7 +506,8 @@ function runTitle(r) {
 function renderCard(r) {
   const gate = gateForRun(r.instance_id);
   const waiting = gate && gate.status === "waiting";
-  const card = el("div", { class: "card" + (waiting ? " wait" : ""),
+  const parked = (r.phase || "").toLowerCase() === "parked";
+  const card = el("div", { class: "card" + (waiting ? " wait" : "") + (parked ? " parked" : ""),
     onclick: () => selectRun(r.instance_id) });
   card.append(el("div", { class: "ctitle", text: runTitle(r) }));
   if (waiting) card.append(el("span", { class: "cflag waiting-badge", text: "⚠ waiting on you" }));
