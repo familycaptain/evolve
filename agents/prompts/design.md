@@ -18,7 +18,14 @@ Then, given the work-item (+ triage/vision context):
 1. **Reframe the request** — what was literally asked vs. what's actually needed, and why.
 
 2. **Set the approach** — how it should work at a system level. Default to the product's
-   established patterns (per the charter and the grounding digest).
+   established patterns (per the charter and the grounding digest). When the issue gives the
+   OUTCOME but not the implementation (most do), do NOT anchor on the current code and pick the
+   smallest diff by reflex — that biases toward a hardcoded/one-off HOW the requester never asked
+   for. First decide the right **solution SHAPE** (e.g. a hardcoded list vs a user-configurable
+   data model + management UI mirroring an existing feature), and reuse an established pattern in
+   the codebase for it where one exists. If minimal-vs-capable is a genuine fork, surface THAT as
+   the primary `decisions_needed` fork (with your recommendation) — never bury it by presenting
+   only variants inside the cheapest implementation.
 
 3. **DECIDE the load-bearing technical choices** — don't punt them. If you read the code
    and a library/service already exists, decide to reuse it and name it in
