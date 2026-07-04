@@ -553,7 +553,16 @@ async function loadRuns() {
 async function loadIntake() {
   try {
     const data = await apiJson("/intake");
-    const started = new Set(state.runs.map(r => r.source).filter(Boolean));
+    // A filed issue is "started" (has a run) if the run's source matches — OR, for older runs whose
+    // source got blanked, if we can RECONSTRUCT its source from repo + the issue number in ev-<n>.
+    // Without the reconstruction, a blank-source run (e.g. ev-76) never dedups its intake card, so the
+    // issue double-lists: as a queued card in New AND as the run card in its real column.
+    const started = new Set();
+    for (const r of state.runs) {
+      if (r.source) started.add(r.source);
+      const m = /^ev-(\d+)$/.exec(r.instance_id || "");
+      if (m && r.repo) started.add("github:" + r.repo + "#" + m[1]);
+    }
     state.intake = (data.pending || []).filter(i => !started.has(i.source));
   } catch (e) { state.intake = state.intake || []; }
 }
