@@ -28,6 +28,15 @@ the same time you are*. Before you act on any state, RE-CHECK the source of trut
 - **Branch / merge state →** `git fetch` then `git ls-remote origin $EVOLVE_STAGING_BRANCH` /
   `git ls-tree origin/$EVOLVE_STAGING_BRANCH -- <file>` — the REMOTE, not your local checkout and not
   your memory. Your local staging branch can be behind origin (the brain host pushes there too).
+- **Deployed state on a host →** when a *shipped* fix reads as broken (especially an operator report),
+  verify what is actually RUNNING before concluding the fix failed: the host's checked-out **branch AND
+  commit** (`git -C <repo> rev-parse --abbrev-ref HEAD && git rev-parse --short HEAD`) — not just that
+  `git pull` said "up to date." A verify/uat host on the WRONG branch (tracking `$EVOLVE_WORLD_BRANCH`
+  instead of `$EVOLVE_STAGING_BRANCH`) or behind origin serves STALE behavior that looks exactly like a
+  failed fix (this cost a long detour: an operator saw pre-fix copy because the box was on the world
+  branch, many commits behind the gate-3 fix on staging). And a running app can serve OLD code after a
+  pull if its source is baked into an image rather than bind-mounted — that needs a rebuild/redeploy, not
+  just a pull.
 This session, trusting remembered state caused real errors: asserting "not merged" when it WAS merged,
 and editing a file from a staging-branch checkout that was many commits behind origin. **Verify, don't
 remember.** The agents are now told the same (see the evolve charter + grounding prompt).
@@ -86,8 +95,14 @@ per-item instruction," and it is still operator-GRANTED (per item or per batch),
   down rather than polling forever.
 - **At each gate, review what the agents actually did and act on the operator's bar:** PUSH BACK
   (`change`/`reject`) if the validation is thin / un-reproduced / the fix is half-done / a big item got
-  sliced into per-leaf operator gates; APPROVE on their behalf if it's genuinely sound; surface to the
-  operator ONLY a real design fork or a real failure. Drive gate-1 → gate-2 → gate-3.
+  sliced into per-leaf operator gates / **design defaulted to the smallest diff** — it picked an
+  implementation the issue never specified (the issue stated only the OUTCOME) when a more capable shape
+  or an existing in-app pattern fits (the reshape is design's whole job; a "just tweak the current code"
+  null design is a push-back) / **the fix targets a look-alike, not the PROVEN source** (a user-visible
+  output can be emitted by a different subsystem than the one that "obviously" owns it — its
+  rendering/delivery frame ≠ its producer; confirm the change landed in the file the reproduce step
+  proved); APPROVE on their behalf if it's genuinely sound; surface to the operator ONLY a real design
+  fork or a real failure. Drive gate-1 → gate-2 → gate-3.
 
 ## The current gate flow (the loop builds; you + the operator own every gate)
 - **Gate-1 now OPENS with a security issue-intent screen + an empirical REPRODUCE-on-the-test-host step**
@@ -99,9 +114,15 @@ per-item instruction," and it is still operator-GRANTED (per item or per batch),
   query/state (e.g. `limit=1 → 0 rows`); for a FEATURE there's nothing to reproduce. You BUILT this flow
   (`security-screen` + `reproduce` agents + the orchestration in `.claude/skills/evolve/SKILL.md`).
 - **Gate-2** = result/validation. Hold the bar: the fix is PROVEN (a real bound test AND a LIVE
-  test-host exercise of the actual path, not just unit-green), and for a UI/visible change the
-  **after/fix screenshot is posted to the issue** to pair with the gate-1 before/repro shot (via
-  `github_connector.attach_image_to_issue` → catbox; renders inline even on the private repo). When an
+  test-host exercise of the actual path, not just unit-green). Evidence is **output-based, not "is it a
+  UI change?"**: any surface that produces output a user could see on a screen (a page, a control, a
+  **chat message / rendered bubble**) needs a RENDERED **after/fix screenshot posted to the issue** — the
+  pixels, not a text transcript — paired with the gate-1 before/repro shot (via
+  `github_connector.attach_image_to_issue` → catbox; renders inline even on the private repo). A
+  transcript can HIDE the source: two messages that read identically render as different-colored bubbles
+  from different producers, and only the screenshot reveals which one is actually wrong (this is how a
+  text-only validation once "passed" while fixing the WRONG source). Only a surface with genuinely zero
+  user-visible output is screenshot-exempt (post its captured stdout/response instead). When an
   integration can't be live-tested for lack of credentials (e.g. a third-party vendor with no test
   account), mock + contract-test it and **explicitly flag it "not live-verified"** — not a fake pass, not
   a hard fail.
@@ -146,6 +167,12 @@ per-item instruction," and it is still operator-GRANTED (per item or per batch),
 - You do NOT decide gates autonomously, and the loop/agents cannot decide them at all (token scoping).
 - Keep momentum; don't ask permission to continue (only consider pausing after ~10pm operator-local).
 - Own mistakes plainly. Confirm hard-to-reverse / production-facing actions before doing them.
+- **Engine ≠ product — route every finding to the right place.** A change to Evolve ITSELF (the agent
+  prompts, these skills, engine scripts/docs) you make DIRECTLY in the evolve repo — Evolve does not
+  modify itself through its own build loop. Only TARGET-PRODUCT changes are filed as GitHub issues for
+  the loop. Ask "engine or product?" before filing: a misfiled engine fix is an issue the loop can't and
+  shouldn't act on (this happened — an engine validation-rule change was wrongly filed as a product
+  issue and had to be closed + applied by hand).
 - Keep the repo clean for public distribution: no operator host or credential in tracked files
   (`.env` only; neutral defaults).
 
