@@ -435,16 +435,20 @@ const COLUMNS = [
 ];
 function columnForRun(r) {
   const ph = (r.phase || "").toLowerCase(), st = (r.status || "").toLowerCase();
-  // terminal states
-  if (ph === "done" || ph === "rejected" || st === "merged" || st === "rejected") return "closed";
+  const g = gateForRun(r.instance_id);
+  const gdec = g ? (g.decision || "").toLowerCase() : "";
+  const gst = g ? (g.status || "").toLowerCase() : "";
+  // TERMINAL — from the run row OR the gate: a REJECTED (any gate) or MERGED (gate-3 verified) item
+  // is Closed even when the run row's phase/status is blank/stale (older or blanked rows). Reading
+  // only run.phase/status would leave a rejected gate-1 item stuck in Requirements.
+  if (ph === "done" || ph === "rejected" || st === "merged" || st === "rejected"
+      || gdec === "reject" || gst === "rejected" || gst === "merged") return "closed";
   // If the run phase has genuinely advanced to a working stage, honor it (the loop moved it forward).
   if (ph === "build") return "build";
   if (ph === "gate2") return "validate";
   if (ph === "verify") return "uat";
-  // Otherwise place by the gate — whether it's WAITING or DECIDED. This keeps a just-approved
-  // gate-1 item in Requirements (now showing "approved") until the loop actually advances its
-  // phase to build, instead of dumping it into New on a stale/empty run.phase.
-  const g = gateForRun(r.instance_id);
+  // Otherwise place by the gate — whether WAITING or (approve/change) DECIDED — so a just-approved
+  // gate-1 item stays in Requirements until the loop advances its phase, instead of dumping into New.
   const gk = g ? (g.gate || "").toLowerCase() : "";
   if (gk === "gate1") return "requirements";
   if (gk === "gate2") return "validate";
