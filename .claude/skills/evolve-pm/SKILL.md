@@ -73,15 +73,15 @@ Passwordless `ssh` to the brain/test/uat hosts; NO ssh to the admin dashboard ho
   `ssh $EVOLVE_BRAIN_HOST 'git fetch && git merge --ff-only origin/$EVOLVE_STAGING_BRANCH'` so the loop
   picks it up. File GitHub issues via
   `python3 -c "from engine import github_connector as g; g.create_issue(title, body, labels=['evolve-incidental'])"`.
-- **Propagating a change to the brain depends on the file's TYPE — canonical source is this box
-  (dev-mint):**
+- **Propagating a change to the brain depends on the file's TYPE — canonical source is the box you run
+  on (`$EVOLVE_ADMIN_HOST`), NOT the brain (the instance names it in `CHARTER.md`):**
   - **Tracked engine code** (agent prompts, skills, `agents/`, `engine/`, `scripts/`) → `git push`; the
     brain `git pull`s it. Per-agent prompts apply on the next agent spawn; a running `/loop` session's
     own SKILL/`registry` import may need a fresh `/loop` to re-read.
   - **Gitignored instance files** (`CHARTER.md`, `.env`, `adapters/<adapter>/`) → they **CANNOT be
     pushed**. After editing, **manually `scp` the file to `$EVOLVE_BRAIN_HOST`** (its evolve checkout),
     then **tell the operator they must RESTART the loop** so it picks up the change. NEVER edit these on
-    the brain (it can't come back to dev-mint and the two silently drift). A `CHARTER.md` edit is not
+    the brain (it can't come back to the canonical box and the two silently drift). A `CHARTER.md` edit is not
     live for the loop until it's copied AND the loop is restarted — say so every time.
 - **Validate / screenshot UI:** drive the test host via the target adapter's deploy/validate (its UI
   harness; the programmatic `login()` is robust, the form login only when login itself is under test).
