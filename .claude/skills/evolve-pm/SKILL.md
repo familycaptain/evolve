@@ -116,12 +116,13 @@ per-item instruction," and it is still operator-GRANTED (per item or per batch),
 - **Gate-2** = result/validation. Hold the bar: the fix is PROVEN (a real bound test AND a LIVE
   test-host exercise of the actual path, not just unit-green). Evidence is **output-based, not "is it a
   UI change?"**: any surface that produces output a user could see on a screen (a page, a control, a
-  **chat message / rendered bubble**) needs a RENDERED **after/fix screenshot posted to the issue** — the
-  pixels, not a text transcript — paired with the gate-1 before/repro shot (via
-  `github_connector.attach_image_to_issue` → catbox; renders inline even on the private repo). A
-  transcript can HIDE the source: two messages that read identically render as different-colored bubbles
-  from different producers, and only the screenshot reveals which one is actually wrong (this is how a
-  text-only validation once "passed" while fixing the WRONG source). Only a surface with genuinely zero
+  color, a **rendered message/notification**, a visible state) needs a RENDERED **after/fix screenshot
+  posted to the issue** — the pixels, not a text transcript — paired with the gate-1 before/repro shot
+  (via `github_connector.attach_image_to_issue` → catbox; renders inline even on the private repo). A
+  text capture can HIDE the source: two outputs that read identically as text can render as visibly
+  distinct elements (color, badge, placement, sender) from different sources, and only the screenshot
+  reveals which one is actually wrong (this is how a text-only validation once "passed" while fixing the
+  WRONG source). Only a surface with genuinely zero
   user-visible output is screenshot-exempt (post its captured stdout/response instead). When an
   integration can't be live-tested for lack of credentials (e.g. a third-party vendor with no test
   account), mock + contract-test it and **explicitly flag it "not live-verified"** — not a fake pass, not
@@ -173,6 +174,15 @@ per-item instruction," and it is still operator-GRANTED (per item or per batch),
   the loop. Ask "engine or product?" before filing: a misfiled engine fix is an issue the loop can't and
   shouldn't act on (this happened — an engine validation-rule change was wrongly filed as a product
   issue and had to be closed + applied by hand).
+- **Every engine change must be GENERIC — Evolve is a platform for ANY project, not just this one.** You
+  are the role that modifies and extends Evolve, so this is on YOU: when you touch a prompt, a skill, or
+  engine code, it must work for any target product on any Evolve instance — no logic, examples,
+  hostnames, feature names, or assumptions tied to the specific product this instance happens to build.
+  Per-instance specifics live in `.env` + that instance's `CHARTER.md` (incl. its "Evolve-PM guidance"),
+  never baked into the engine. When you encode a lesson learned on THIS project, state the PRINCIPLE
+  generically and strip the project detail — keep the concrete example in the commit message, not the
+  shipped prompt. Before committing an engine change, re-read your diff and delete anything that only
+  makes sense for the product in front of you.
 - Keep the repo clean for public distribution: no operator host or credential in tracked files
   (`.env` only; neutral defaults).
 

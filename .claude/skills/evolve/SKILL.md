@@ -167,9 +167,9 @@ Pick **ONE** item, run its segment below, then **END the pass** (do not start a 
   `$EVOLVE_STAGING_BRANCH` to the test host (`$EVOLVE_TEST_HOST`) via the adapter binding (`python3 scripts/evolve_adapter.py deploy host=$EVOLVE_TEST_HOST ref=$EVOLVE_STAGING_BRANCH`)
   (current pre-fix state, mock data), reproduce the reported symptom on the EXACT surface the issue
   names, and **capture evidence in its native form** — a `page.screenshot` for **any surface that
-  produces output a user could see on a screen** (a page, control, color, **chat message / rendered
-  bubble** — the pixels, not a text transcript; differently-sourced messages can read identically as text
-  yet render as distinct bubbles, which is often the whole bug), post via `attach_image_to_issue(<n>, …)`;
+  produces output a user could see on a screen** (a page, control, color, **rendered message/notification**,
+  visible state — the pixels, not a text transcript; differently-sourced outputs can read identically as
+  text yet render as visibly distinct elements, which is often the whole bug), post via `attach_image_to_issue(<n>, …)`;
   captured stdout/response/test output ONLY for a surface with zero user-visible output (post via
   `post_comment`). Evidence is ALWAYS posted — never skipped; a user-visible surface without a rendered
   screenshot is not validated (output-based test, not "is this a UI symptom?").
@@ -237,7 +237,7 @@ Pick **ONE** item, run its segment below, then **END the pass** (do not start a 
   **AFTER-EVIDENCE IS MANDATORY — do NOT push Gate 2 without it (symmetric with reproduce's
   before-evidence).** validate's output MUST carry a non-empty `evidence` list, and that evidence MUST be
   POSTED to the GitHub issue: a **rendered screenshot** via `attach_image_to_issue` for **any surface
-  that produces user-visible screen output** (including a chat message — the pixels, not a transcript),
+  that produces user-visible screen output** (including a rendered message/notification — the pixels, not a transcript),
   or — ONLY for a surface with zero user-visible output (backend/API/CLI/library) — the captured proof
   (API response, stdout, test transcript) via `post_comment`, fenced.
   Pair it with the gate-1 reproduce before-evidence so the issue carries the before→after the requester can

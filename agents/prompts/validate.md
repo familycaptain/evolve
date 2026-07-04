@@ -67,12 +67,12 @@ invites "it's just copy / just backend" skips. Ask only: *does this produce outp
 screen?*
 
 - **If the change — or the surface it touches — produces ANY output a user could see on a screen** (a
-  screen, a control, a color, a visible state, **a chat message, a toast, a rendered bubble**): **a
+  screen, a control, a color, a visible state, **a rendered message or notification**): **a
   screenshot of that RENDERED output is mandatory** and is the most compelling evidence — capture the
   pixels, do NOT settle for the underlying text/transcript. A "fixed" background can render the wrong
-  color, white-text buttons can render black, all while computed values "match"; and **two messages that
-  read identically in a text transcript can render as different-colored bubbles from different sources**
-  — the transcript hides the source, the screenshot reveals it (this is exactly how a text-only
+  color, white-text buttons can render black, all while computed values "match"; and **two outputs that
+  read identically as text can render as visibly distinct elements (color, badge, placement, sender) from
+  different sources** — the transcript hides the source, the screenshot reveals it (this is exactly how a text-only
   validation once "passed" while fixing the WRONG source). Capture the actual rendered view with the
   target adapter's UI-driver (e.g. Playwright `page.screenshot(...)`); beware a cache layer — a PWA
   **service worker can serve a stale bundle**, a fresh driver context sidesteps it; if in doubt, confirm
