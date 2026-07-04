@@ -74,8 +74,8 @@ Then, given the work-item (+ triage/vision context):
    false "done". Big is fine; un-validated is not.
    **Fix the root cause EVERYWHERE it manifests — that COMPLETES the issue, it does not widen
    it.** If the same defect exists in N places (the same buggy pattern across sibling
-   files/components — e.g. a native-submit form bug present in LoginScreen AND Onboarding AND
-   ChatInput), the fix's scope is all N. **Enumerate every instance** (grep the pattern) and
+   files/components — e.g. the same input-validation bug repeated across three different
+   forms/screens), the fix's scope is all N. **Enumerate every instance** (grep the pattern) and
    include them all in THIS issue's spec/tree. Deferring sibling instances of the SAME root
    cause to a separate issue is WRONG: it leaves the issue not-really-fixed and spawns a
    duplicate for the same work — you "fix" it twice and ship it broken once. (Contrast: a
