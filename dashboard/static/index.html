@@ -752,7 +752,7 @@ function renderGate(gate) {
                          "code_plan", "agents", "validation", "diff", "gate", "title", "repo"]);
 
   if (p.work_item) wrap.append(sectionWorkItem(p.work_item));
-  if (Array.isArray(p.decisions_needed) && p.decisions_needed.length) wrap.append(sectionDecisions(p.decisions_needed));
+  if (Array.isArray(p.decisions_needed) && p.decisions_needed.length) wrap.append(sectionDecisions(p.decisions_needed, gate));
   if (p.spec_tree) wrap.append(sectionSpecTree(p.spec_tree));
   if (p.code_plan) wrap.append(sectionCodePlan(p.code_plan));
   if (p.agents) wrap.append(sectionAgents(p.agents));
@@ -811,12 +811,26 @@ function sectionWorkItem(wi) {
   return sec;
 }
 
-function sectionDecisions(list) {
+function sectionDecisions(list, gate) {
   state.currentDecisions = list;
   if (!state.decisionAnswers) state.decisionAnswers = {};
   const optLabel = (o) => (typeof o === "object" ? (o.label || o.value || JSON.stringify(o)) : String(o));
+  const decided = !!(gate && gate.status !== "waiting");
+  // For a DECIDED gate the radio state is gone, but the selections were folded into the recorded
+  // note as "Decisions:\n1. <label> — <per-q note>\n2. …" — parse them back per question so the
+  // operator sees what they actually chose (read-only) instead of blank/default radios.
+  const recorded = {};
+  if (decided && gate.note) {
+    const m = gate.note.match(/Decisions:\s*\n([\s\S]*?)(?:\n\n|$)/);
+    if (m) m[1].split("\n").forEach(line => {
+      const lm = line.match(/^\s*(\d+)\.\s+(.*)$/);
+      if (lm) recorded[parseInt(lm[1], 10) - 1] = lm[2].trim();
+    });
+  }
   const sec = el("section", { class: "section" });
-  sec.append(el("div", { class: "shead" }, "decisions needed (" + list.length + ") — pick one + add a note each"));
+  sec.append(el("div", { class: "shead" }, decided
+    ? "decisions (" + list.length + ") — your recorded selections"
+    : "decisions needed (" + list.length + ") — pick one + add a note each"));
   const body = el("div", { class: "sbody decision" });
   list.forEach((d, i) => {
     const wrap = el("div", { class: "decision-q" });
@@ -824,13 +838,37 @@ function sectionDecisions(list) {
     wrap.append(el("div", { class: "qtitle", text: (i + 1) + ". " + q }));
     const opts = (typeof d === "object" && Array.isArray(d.options)) ? d.options : [];
     const recStr = (typeof d === "object" && typeof (d.recommendation || d.rec) === "string") ? (d.recommendation || d.rec) : "";
-    // pre-select the recommended option (first whose leading token appears in the recommendation)
     // pre-select by matching the rec's LEADING token to an option's leading token (the rec text often
     // mentions other options too, so a naive "contains" wrongly matched the first one). Split on
     // whitespace/paren/em-dash only — NOT the hyphen inside tokens like "w-64".
     const firstTok = (s) => String(s).trim().toLowerCase().split(/[\s(—]/)[0];
     const recTok = firstTok(recStr);
     const recIdx = recTok ? opts.findIndex(o => firstTok(optLabel(o)) === recTok) : -1;
+
+    if (decided) {
+      // read-only: reflect the recorded choice + per-question note; highlight the chosen option
+      let chosenLabel = recorded[i] || "", qnote = "";
+      const dash = chosenLabel.indexOf(" — ");
+      if (dash >= 0) { qnote = chosenLabel.slice(dash + 3).trim(); chosenLabel = chosenLabel.slice(0, dash).trim(); }
+      let matched = false;
+      opts.forEach((o) => {
+        const chosen = optLabel(o) === chosenLabel;
+        if (chosen) matched = true;
+        const lab = el("label", { class: "opt-radio" });
+        const radio = el("input", { type: "radio", disabled: "disabled" });
+        if (chosen) radio.checked = true;
+        lab.append(radio, el("span", { text: " " + optLabel(o),
+          style: chosen ? "color:var(--green);font-weight:600;" : "color:var(--txt-faint);" }));
+        wrap.append(lab);
+      });
+      if (chosenLabel && !matched) wrap.append(el("div", { class: "qrec", text: "chose: " + chosenLabel }));
+      if (qnote) wrap.append(el("div", { style: "color:var(--txt-dim);font-size:12px;margin-top:4px;", text: "note: " + qnote }));
+      if (!recorded[i]) wrap.append(el("div", { class: "qrec", text: "(no recorded selection)" }));
+      body.append(wrap);
+      return;
+    }
+
+    // interactive (waiting on the operator)
     if (state.decisionAnswers[i] === undefined) state.decisionAnswers[i] = { choice: recIdx, note: "" };
     opts.forEach((o, oi) => {
       const lab = el("label", { class: "opt-radio" });
