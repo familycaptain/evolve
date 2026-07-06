@@ -25,7 +25,10 @@ for _l in (open(_envf) if os.path.exists(_envf) else []):
     _l = _l.strip()
     if _l and not _l.startswith("#") and "=" in _l:
         _k, _v = _l.split("=", 1)
-        os.environ.setdefault(_k.strip(), _v.strip().strip('"').strip("'"))
+        _v = _v.strip()
+            if _v and _v[0] not in "'\"":
+                _v = _v.split(" #", 1)[0].rstrip()   # unquoted inline comment
+            os.environ.setdefault(_k.strip(), _v.strip('\"').strip("'"))
 
 BASE = (os.getenv("EVOLVE_SERVER_URL") or "http://localhost:8000").rstrip("/")
 API = BASE + "/api/apps/evolve"

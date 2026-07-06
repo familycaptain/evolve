@@ -41,7 +41,10 @@ def _load_dotenv_once() -> None:
         line = line.strip()
         if line and not line.startswith("#") and "=" in line:
             k, v = line.split("=", 1)
-            os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+            v = v.strip()
+            if v and v[0] not in "'\"":
+                v = v.split(" #", 1)[0].rstrip()   # unquoted inline comment
+            os.environ.setdefault(k.strip(), v.strip('\"').strip("'"))
 
 
 def _token(repo: str | None = None) -> str:

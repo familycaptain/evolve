@@ -25,7 +25,10 @@ for _line in (open(os.path.join(ROOT, ".env")) if os.path.exists(".env") else []
     _line = _line.strip()
     if _line and not _line.startswith("#") and "=" in _line:
         _k, _v = _line.split("=", 1)
-        os.environ.setdefault(_k.strip(), _v.strip().strip('"').strip("'"))
+        _v = _v.strip()
+            if _v and _v[0] not in "'\"":
+                _v = _v.split(" #", 1)[0].rstrip()   # unquoted inline comment
+            os.environ.setdefault(_k.strip(), _v.strip('\"').strip("'"))
 
 from engine import platform_bridge as bridge
 
