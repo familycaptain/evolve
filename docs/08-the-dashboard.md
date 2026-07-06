@@ -262,7 +262,7 @@ reverify, **admit / admit/revoke**) reject the service token outright. For the f
 two-token model, see
 [Architecture & the Fleet](02-architecture.md).
 
-The server binds the address in **`EVOLVE_DASHBOARD_HOST`** (default `127.0.0.1`). Binding a
+The server binds the address in **`EVOLVE_DASHBOARD_BIND`** (default `127.0.0.1`). Binding a
 non-loopback address **requires** the auth tokens to be configured — token-less mode refuses to
 start off loopback.
 

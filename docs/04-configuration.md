@@ -131,7 +131,7 @@ These have working defaults and are optional; set them only if you need to overr
 
 | Key | What it does | Default |
 |---|---|---|
-| `EVOLVE_DASHBOARD_HOST` | Address the dashboard binds. Binding a **non-loopback** address requires the auth tokens — token-less mode refuses to start off loopback. | `127.0.0.1` |
+| `EVOLVE_DASHBOARD_BIND` | The network INTERFACE the dashboard's socket binds (an IP, not a machine name — distinct from the fleet-role `EVOLVE_ADMIN_HOST`). Binding a **non-loopback** address requires the auth tokens — token-less mode refuses to start off loopback. | `127.0.0.1` |
 | `EVOLVE_DASHBOARD_PORT` (or `PORT`) | Port the dashboard binds. `EVOLVE_DASHBOARD_PORT` wins, then `PORT`. Note `uvicorn ... --port 8000` on the CLI overrides both. | `8000` |
 | `EVOLVE_DASHBOARD_DB` | SQLite store path for runs/gates/events. | `~/.evolve/dashboard.db` |
 

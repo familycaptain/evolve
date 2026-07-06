@@ -386,15 +386,15 @@ async def root():
 def main() -> None:
     import uvicorn
 
-    # Default to loopback. Binding a non-loopback interface (EVOLVE_DASHBOARD_HOST=0.0.0.0
+    # Default to loopback. Binding a non-loopback interface (EVOLVE_DASHBOARD_BIND=0.0.0.0
     # so the brain host can reach the dashboard) REQUIRES the auth tokens: token-less "dev
     # mode" on a network interface would let anyone on the LAN decide gates and admit issues.
-    host = os.getenv("EVOLVE_DASHBOARD_HOST") or "127.0.0.1"
+    host = os.getenv("EVOLVE_DASHBOARD_BIND") or "127.0.0.1"
     if host not in ("127.0.0.1", "localhost", "::1") and not (DECIDE_TOKEN or SERVICE_TOKEN):
         raise SystemExit(
             "refusing to bind {!r} with no EVOLVE_DECIDE_TOKEN/EVOLVE_SERVICE_TOKEN set — "
             "token-less mode is for loopback only. Set the tokens in .env, or leave "
-            "EVOLVE_DASHBOARD_HOST unset for local dev.".format(host))
+            "EVOLVE_DASHBOARD_BIND unset for local dev.".format(host))
     uvicorn.run("dashboard.server:app", host=host, port=PORT, reload=False)
 
 
