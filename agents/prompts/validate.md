@@ -77,6 +77,13 @@ screen?*
   target adapter's UI-driver (e.g. Playwright `page.screenshot(...)`); beware a cache layer — a PWA
   **service worker can serve a stale bundle**, a fresh driver context sidesteps it; if in doubt, confirm
   the deployed build contains your change.
+- **After EVERY deploy, CONFIRM the target actually moved** before testing anything: the deployed
+  checkout's sha must equal the ref you deployed (`git rev-parse --short HEAD` on the host, or the
+  `sha` in the deploy binding's JSON). A deploy can silently leave STALE code (e.g. `git checkout`
+  aborts on a colliding untracked file but the product still restarts) — then your run tests the
+  WRONG build and fails confusingly (ImportError for just-merged code is the classic tell). A
+  validation host is disposable: recover with reset --hard + clean untracked + redeploy, never by
+  "working around" the stale state.
 - **Only a surface with genuinely ZERO user-visible output is exempt** from the screenshot — a pure
   backend / CLI / API / library / pipeline change with no UI consumer (**even inside a project that HAS a
   UI** — a UI project with a backend-only bug lands here). It STILL posts its captured proof: **stdout +

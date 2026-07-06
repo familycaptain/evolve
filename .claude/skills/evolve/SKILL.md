@@ -386,6 +386,12 @@ Reuse the EXISTING modules read-only (never modify them), from the repo root on 
   shapes in `agents/registry.py`.
 
 ## Operating rules
+- **Engine/harness gotchas you learn are FEEDBACK, not just notes.** When you hit a lesson about
+  the ENGINE itself (a deploy/validate footgun, a binding quirk, a harness trap — not product
+  behavior), record it as a memory with a precise description: the operator's PM assistant
+  periodically harvests your memory dir and encodes the durable ones into the engine (prompts,
+  adapter templates, binding contracts). Write them to be harvested: symptom, root cause, the
+  generic rule. Never file engine work as a product issue — the memory IS the channel.
 - **Verify LIVE state — never act on remembered state.** Your memory of run phases, ev-ids, branch
   SHAs, what's merged, and gate decisions goes STALE: the operator (and their assistant) are editing the
   DB, deciding gates, and pushing branches **concurrently with you**. Before you act on any state,

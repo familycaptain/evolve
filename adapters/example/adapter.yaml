@@ -18,9 +18,15 @@
 #     {clone_path}  e.g. apps/anime               {clone_target}  abs path: <host_path>/<clone_path>
 #   A platform repo deploys in place (below). An app/model repo builds in its own repo, then this op
 #   clones the built branch INTO its host platform at {clone_target} and restarts — e.g.:
-#     deploy: "ssh {host} 'set -e; if [ \"{repo_type}\" = platform ]; then cd {host_path:-~/myproject} && git fetch -q && git checkout -q {ref} && ./deploy.sh; else rm -rf {clone_target} && git clone -q -b {ref} <app-remote> {clone_target} && cd {host_path} && ./deploy.sh; fi'"
+#     deploy: "ssh {host} 'set -e; if [ \"{repo_type}\" = platform ]; then cd {host_path:-~/myproject} && git fetch -q && git reset --hard -q && git clean -fdq && git checkout -qf {ref} && ./deploy.sh; else rm -rf {clone_target} && git clone -q -b {ref} <app-remote> {clone_target} && cd {host_path} && ./deploy.sh; fi'"
 #   (Keep your own recipe; the point is the engine HANDS you repo_type + clone_target so you can branch on it.)
-deploy: "ssh {host} 'cd ~/myproject && git fetch --all -q && git checkout -q {ref} && ./deploy.sh && echo {\"ok\":true,\"healthy\":true}'"
+#   DIRTY-CHECKOUT SAFETY (learned in production): a plain `git checkout {ref}` ABORTS when an
+#   untracked file on the host collides with a file tracked in {ref} — and if your command chain
+#   doesn't stop there, the product comes up on STALE code and validation fails confusingly
+#   (e.g. ImportError for code that was just merged). A validation host is DISPOSABLE: always
+#   reset --hard + clean -fd before a forced checkout, sync a branch ref to its origin, and echo
+#   the deployed sha so callers can verify the deploy actually moved.
+deploy: "ssh {host} 'cd ~/myproject && git fetch --all -q && git reset --hard -q && git clean -fdq && git checkout -qf {ref} && (git reset --hard -q origin/{ref} 2>/dev/null || true) && ./deploy.sh && echo {\"ok\":true,\"healthy\":true,\"sha\":\"$(git rev-parse --short HEAD)\"}'"
 
 # health host=<host>
 #   Exit 0 if the product is up on <host>, non-zero otherwise.

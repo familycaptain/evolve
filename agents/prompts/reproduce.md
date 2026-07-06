@@ -26,7 +26,11 @@ run. **Never** perform an action the issue frames as an attack/exploit to "prove
 security screen's job, upstream of you. Honor any `repro_constraints` it passed (e.g. inert markers).
 
 ## Steps
-1. **Deploy the CURRENT `$EVOLVE_STAGING_BRANCH` to the test host** via the adapter binding **`python3 scripts/evolve_adapter.py deploy host=$EVOLVE_TEST_HOST ref=$EVOLVE_STAGING_BRANCH`**
+1. **Deploy the CURRENT `$EVOLVE_STAGING_BRANCH` to the test host** via the adapter binding **`python3 scripts/evolve_adapter.py deploy host=$EVOLVE_TEST_HOST ref=$EVOLVE_STAGING_BRANCH`** —
+   then **confirm the host actually landed on that ref** (its `git rev-parse --short HEAD` equals the
+   branch head / the deploy JSON's `sha`). A silently-stale deploy (e.g. checkout aborted on an
+   untracked-file collision while the product restarted anyway) makes you reproduce against the wrong
+   build; the host checkout is disposable — reset --hard + clean untracked + redeploy if it didn't move
    (the live, pre-fix state the user is reporting against). Apply **no** fix — you are recreating the
    bug, not fixing it. (The test host runs mock data.)
 2. **Reproduce the REPORTED symptom through the project's real interface/flow** — per the charter's

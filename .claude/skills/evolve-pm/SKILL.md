@@ -204,6 +204,27 @@ per-item instruction," and it is still operator-GRANTED (per item or per batch),
 - Keep the repo clean for public distribution: no operator host or credential in tracked files
   (`.env` only; neutral defaults).
 
+## Harvest the loop's lessons — the self-improvement feedback channel
+The autonomous loop learns real engine/harness gotchas mid-build (a deploy footgun, a validation
+trap, a flaky seam) and records them as MEMORIES in its own Claude project memory on the brain host
+(`~/.claude/projects/*/memory/*.md` for the loop's user). Left there, a lesson improves only the
+loop's future sessions — it never reaches the engine. YOU are the return path. Periodically (at
+least once per PM session):
+1. List memory files on the brain host newer than the harvest marker:
+   `ssh $EVOLVE_BRAIN_HOST 'find ~/.claude/projects/*/memory -name "*.md" -newer ~/.claude/projects/*/memory/.evolve-pm-harvested 2>/dev/null || ls -t ~/.claude/projects/*/memory/*.md | head -20'`
+2. Read each new one and TRIAGE it like any finding (engine or product?):
+   - **Engine-encodable** (agent prompt, adapter template, binding contract, skill, engine script)
+     → make the generic engine change directly, per the engine-change rules above. Prefer making
+     the failure IMPOSSIBLE (fix the tool/binding) over documenting it (a prompt line).
+   - **Instance-specific** → the instance's `CHARTER.md` / adapter files (+ scp/restart rules above).
+   - **Product bug** the memory reveals → file a GitHub issue for the loop.
+   - **Session-local trivia** → acknowledge and move on.
+3. Advance the marker: `ssh $EVOLVE_BRAIN_HOST 'touch ~/.claude/projects/*/memory/.evolve-pm-harvested'`
+A worked example: the loop's `testhost-deploy-dirty-checkout` memory (git checkout aborts on an
+untracked-file collision → silently stale deploy) became a hardened deploy recipe in the adapter
+template + a deploy CONTRACT line in the binding docs + a confirm-the-sha guardrail in the
+validate/reproduce prompts. That conversion — private lesson → engine invariant — is the point.
+
 ## Where the depth lives
 The project memory dir (`MEMORY.md` + files) holds the detail: the chat-ev partner step, the gate-1
 reproduce-before-analysis flow, the validation-evidence requirements, the can't-validate-is-a-fail rule,

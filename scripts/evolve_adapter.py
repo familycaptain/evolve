@@ -12,6 +12,10 @@ target host). Output and exit code pass straight through, so the calling agent r
 
 Operations the engine uses (an adapter implements only the ones it needs):
   deploy      host=<host> ref=<branch|sha>   check out <ref> on <host>, bring the product up.
+              CONTRACT: must leave the host at EXACTLY <ref> even from a dirty checkout (reset
+              --hard + clean untracked + forced checkout) and must FAIL rather than bring the
+              product up on stale code — a checkout abort that falls through to a restart makes
+              validation test the wrong build. Echo the deployed sha in the JSON result.
                                              Should print JSON {"ok":..,"healthy":..,"sha":..}, exit 0/!=0.
   health      host=<host>                    exit 0 if the product is up on <host>.
   acceptance  host=<host> spec=<id|file>     drive the product as a user; print {"passed":..,"evidence":[..]}.
