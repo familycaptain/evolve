@@ -26,6 +26,7 @@ Every key below comes from `.env.example`. "Machine(s)" tells you where each val
 | Key | What it does | Machine(s) | Example / default |
 |---|---|---|---|
 | `EVOLVE_PRODUCT_NAME` | The product this instance maintains; surfaced in dashboards/logs. The charter names + describes it. | admin, brain | `YourProduct` |
+| `EVOLVE_CHARTER_PATH` | Path to the charter file — the vision authority every agent judges against. | admin, brain | _(blank)_ = `CHARTER.md` (repo root) |
 
 ### Fleet hosts — the four machines
 
@@ -44,6 +45,9 @@ Logical names → real SSH hosts. May be VMs, containers, or boxes; any OS.
 |---|---|---|---|
 | `EVOLVE_REPOS_FILE` | Path to the repo registry. Loaded by `engine/repos.py`; the dashboard repo-switcher and the per-pass multi-repo intake read it. | admin, brain | `evolve.repos.yaml` |
 | `EVOLVE_INTAKE_DEFAULT` | Default issue-intake mode for repos that don't set their own. `auto` = process every open issue; `manual` = process ONLY issues a human admits in the dashboard. Per-repo override via the registry `intake:` field. | admin, brain | `auto` |
+| `EVOLVE_TARGET_REPO_PATH` | The PRIMARY repo's local working path (single-repo fallback when no registry file is present; with a registry, each repo's `path` is used). | brain | `~/repos/your-project` |
+| `GITHUB_REPO` | Single-repo fallback used ONLY when `evolve.repos.yaml` is absent (see `engine/repos.py`). | admin, brain | _(empty)_ — e.g. `your-org/your-repo` |
+| `EVOLVE_OPERATOR_GH` | Comma-separated GitHub logins treated as the operator — their issues skip vision-fit and are never auto-rejected at triage. Empty = no one. | brain | _(empty)_ — e.g. `your-github-username` |
 
 ### Branch defaults
 
@@ -67,6 +71,12 @@ it at its own script (any script taking `<worktree> <base_ref>`, printing JSON, 
 | `EVOLVE_PLATFORM_PREFIXES` | *(only for the shipped layered checker)* core prefixes a unit may depend ON. | brain | `core` |
 | `EVOLVE_APP_GLOB` | *(only for the shipped layered checker)* the unit directories that must not import each other. | brain | `apps/*` |
 
+### Spec roots
+
+| Key | What it does | Machine(s) | Example / default |
+|---|---|---|---|
+| `EVOLVE_SPEC_ROOTS` | Comma-separated repo-relative globs where the C/F/S specs live. **Advisory** — no engine code reads it; it is context for the agents (the prompts reference `$EVOLVE_SPEC_ROOTS`). The authoritative per-repo setting is `spec_roots:` in the registry. | brain | _(blank)_ = type-aware default (platform: `apps/*/specs,specs`; app/model: `specs`) |
+
 ### Deploy / health (simple-case adapter knobs)
 
 The simple-case knobs for deploying + health-checking your product on a host. The pluggable target
@@ -75,8 +85,15 @@ stacks, and an adapter's `adapter.yaml` may reference them; the binding itself i
 
 | Key | What it does | Machine(s) | Example / default |
 |---|---|---|---|
-| `EVOLVE_DEPLOY_CMD` | Command run on a host to deploy the checked-out branch. | brain | _(empty)_ — e.g. `skipper update` |
+| `EVOLVE_ADAPTER` | **The adapter binding** — names the directory under `adapters/` whose `adapter.yaml` maps the engine ops (deploy / health / acceptance / seed / scaffold) to your commands, invoked via `scripts/evolve_adapter.py <op> …`. | brain | _(empty)_ — e.g. `myproject` → `adapters/myproject/adapter.yaml` |
+| `EVOLVE_DEPLOY_CMD` | Command run on a host to deploy the checked-out branch. | brain | _(empty)_ — e.g. `./deploy.sh` |
 | `EVOLVE_HEALTH_PATH` | Path polled to confirm the deploy is up. | brain | _(empty)_ — e.g. `/api/health` |
+
+### Evidence images
+
+| Key | What it does | Machine(s) | Example / default |
+|---|---|---|---|
+| `EVOLVE_IMAGE_UPLOAD_CMD` | Uploader the reproduce/validate agents run (image path as last arg; must print the resulting URL on stdout) before linking screenshots on the GitHub issue. Set your own to keep evidence private. | brain | _(blank)_ = catbox.moe (public, anonymous — fine only for non-sensitive/mock data) |
 
 ### Dashboard URL
 
@@ -84,6 +101,14 @@ stacks, and an adapter's `adapter.yaml` may reference them; the binding itself i
 |---|---|---|---|
 | `EVOLVE_SERVER_URL` | The dashboard URL the brain reports to + the PM reads. On the brain, set it to the admin machine's reachable URL. | admin, brain | `http://localhost:8000` |
 | `EVOLVE_STATE_DIR` | Where the loop stores per-item run state. Set a distinct path to run more than one Evolve instance on one host. | brain | `~/.evolve/runs` |
+
+### Advanced path overrides (all default under `~/.evolve/`)
+
+| Key | What it does | Machine(s) | Example / default |
+|---|---|---|---|
+| `EVOLVE_OUTBOX` | The offline outbox file for queued dashboard posts. | brain | _(blank)_ = `~/.evolve/outbox.jsonl` |
+| `EVOLVE_SPEC_INDEX_CACHE` | The triage dedup spec-index cache. | brain | _(blank)_ = `<EVOLVE_STATE_DIR>/spec_index_cache.json` |
+| `EVOLVE_COST_DB` | The spend-ledger SQLite path (vestigial on the subscription path — no metered cost). | brain | _(blank)_ = `~/.evolve/costs.db` |
 
 ### Tokens & secrets
 
@@ -106,10 +131,9 @@ These have working defaults and are optional; set them only if you need to overr
 
 | Key | What it does | Default |
 |---|---|---|
+| `EVOLVE_DASHBOARD_HOST` | Address the dashboard binds. Binding a **non-loopback** address requires the auth tokens — token-less mode refuses to start off loopback. | `127.0.0.1` |
 | `EVOLVE_DASHBOARD_PORT` (or `PORT`) | Port the dashboard binds. `EVOLVE_DASHBOARD_PORT` wins, then `PORT`. Note `uvicorn ... --port 8000` on the CLI overrides both. | `8000` |
 | `EVOLVE_DASHBOARD_DB` | SQLite store path for runs/gates/events. | `~/.evolve/dashboard.db` |
-| `GITHUB_REPO` | Single-repo fallback used when no `evolve.repos.yaml` is present (see `engine/repos.py`). | _(empty)_ |
-| `EVOLVE_OPERATOR_GH` | Comma-separated GitHub logins treated as the operator — their issues skip vision-fit and are never auto-rejected at triage. Empty = no one. | brain | _(empty)_ |
 
 ---
 
@@ -354,8 +378,8 @@ repo. Each has a tracked `*.example` template you copy:
 
 Also gitignored: local run/loop state (`.evolve/`, the `EVOLVE_STATE_DIR` tree — default `~/.evolve/runs`) and Python artifacts. The
 `.gitignore` also explicitly excludes `evolve.config.yaml` (a future per-instance config surface) and
-`adapters/skipper/` (the first customer's real adapter; `adapters/example/` is the scrubbed
-reference).
+`adapters/skipper/` (the first customer's real adapter; `adapters/example/` is the tracked
+neutral reference).
 
 
 ### Issue intake (auto vs manual)

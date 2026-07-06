@@ -1,9 +1,9 @@
-# Evolve — SDLC process flow (v0.8.1)
+# Evolve — SDLC process flow
 
 > **The authoritative flow picture.** This is the canonical diagram of the Evolve
 > agent swarm, its gates, and the full process. Open this file in GitHub (or VS Code
-> preview / mermaid.live) to see the graph. See [`CHARTER.md`](./CHARTER.md) for the
-> engine's charter.
+> preview / mermaid.live) to see the graph. See [`CHARTER.example.md`](../CHARTER.example.md) for the
+> engine's charter template.
 
 **Legend:** 🟦 event (incl. cadence triggers) · 🟩 agent (one specialized agent
 each) · 🟪 system (deterministic automation, no LLM) · 🟨 human gate · 🟥 gateway
@@ -11,25 +11,20 @@ each) · 🟪 system (deterministic automation, no LLM) · 🟨 human gate · �
 
 ```mermaid
 flowchart TD
-  %% intake: two reactive (both pulled from GitHub by one connector)
+  %% intake — BUILT today: one reactive lane (GitHub issues; PRs are excluded by the connector)
   s_issue(["GitHub issue — reactive"]):::event --> triage
-  s_pr(["GitHub PR — reactive"]):::event --> triage
 
-  %% intake: proactive A — Design (new features)
-  gen_design["Feature-proposer agent (cadence): propose features"]:::agent --> l_design
-
-  %% intake: proactive B — QA / bug-discovery (code AND spec defects)
-  qa_sweep(["QA sweep (cadence)"]):::event --> qa_var["Variance/drift detector — code vs approved spec"]:::agent
-  qa_sweep --> qa_reg[["Run regression suite"]]:::sys
-  qa_sweep --> qa_audit["Code-audit — bugs, edge cases, security"]:::agent
-  qa_sweep --> qa_spec["Spec-audit — gaps/holes/naive assumptions in existing C/F/S"]:::agent
-  qa_var --> qa_join{{"join findings"}}:::gw
-  qa_reg --> qa_join
-  qa_audit --> qa_join
-  qa_spec --> qa_join
-  qa_join --> s_bug(["QA finding (bug or spec-gap)"]):::event
-  s_bug --> triage
-  qa_var -. "fast-path: pure variance" .-> prio
+  %% intake — DESIGNED, NOT BUILT (dashed): PR canonicalization, a feature-proposer cadence,
+  %% and a QA/bug-discovery sweep (variance detector + regression + code/spec audits).
+  subgraph FUTURE["🚧 designed — not built yet"]
+    direction TB
+    s_pr(["GitHub PR — reactive"]):::future
+    gen_design["Feature-proposer agent (cadence)"]:::future
+    qa_sweep(["QA sweep (cadence): variance · regression · code-audit · spec-audit"]):::future
+  end
+  s_pr -.-> triage
+  gen_design -.-> l_design
+  qa_sweep -.-> triage
 
   %% FUNNEL — cheap gates first; the expensive spec phase runs ONLY for survivors
   triage["Triage: reject junk (dup/malicious/invalid), classify bug/feature"]:::agent --> gw_kind{"reject / bug / feature?"}:::gw
@@ -50,7 +45,7 @@ flowchart TD
   sec_screen -->|"block (malicious — never reproduce it)"| gate1
   sec_screen -->|clear| repro["🔁 Reproduce on evolve-test — recreate the REPORTED symptom + screenshot it"]:::box2
   repro -->|"can't reproduce → Gate-1 finding (no fix invented)"| gate1
-  repro -->|"reproduced ✓ — carry the proven surface"| l_design
+  repro -->|"reproduced ✓ — carry the proven surface"| l_ground
   repro -. "📷 before / repro proof" .-> gh_issue[("GitHub issue")]:::event
 
   %% Spec phase: the LEAD runs an agentic inner loop — shown expanded here.
@@ -58,13 +53,18 @@ flowchart TD
   %% (bounded rounds); Security/Arch/Interop/UX review; the Lead arbitrates + recommends.
   subgraph LEAD["🟩 Lead — spec phase (agentic inner loop, bounded rounds)"]
     direction TB
-    l_design["<b>Design</b> — set approach, decide tech choices, size / decompose (reads the real code)"]:::agent
+    l_ground["Grounding — scan the codebase → shared code_context digest"]:::agent
+    l_design["<b>Design</b> — set approach, decide tech choices, size / decompose"]:::agent
     l_author["Spec-author — write C/F/S + bound tests"]:::agent
+    l_scout["Code-scout — read-only file-level code plan"]:::agent
     l_audit["Spec-auditor — critique the draft"]:::agent
     l_rev["Reviewers — Security · Architecture · Interop · UX"]:::agent
     l_lead["<b>Lead</b> — arbitrate rounds; own the proposal + Gate-1 recommendation"]:::agent
+    l_ground --> l_design
     l_design --> l_author
-    l_author <-->|"bounded rounds"| l_audit
+    l_author --> l_scout
+    l_scout --> l_audit
+    l_author <-.->|"bounded rounds (Lead arbitrates)"| l_audit
     l_audit --> l_rev
     l_rev --> l_lead
   end
@@ -75,10 +75,9 @@ flowchart TD
   gate1 -->|reject| e_rejected
   gate1 -->|approve| serialize[["Serialize spec to file (branch)"]]:::sys
 
-  serialize --> impl["Implement code (or canonicalize PR)"]:::agent
-  impl --> tests["Author/update tests"]:::agent
-  tests --> deploy[["evolve-test: pull branch + restart"]]:::sys
-  deploy --> validate["Validate on evolve-test (Playwright)"]:::box2
+  serialize --> impl["Implement code + author the bound tests (isolated worktree)"]:::agent
+  impl --> deploy[["Deploy the feature branch to the test host (adapter binding)"]]:::sys
+  deploy --> validate["Validate on the test host — bound tests + live acceptance via the project's REAL interface"]:::box2
   validate --> gw_tests{"tests green?"}:::gw
   gw_tests -->|"failing, retry within budget"| impl
   gw_tests -->|"stuck / can't pass → operator re-approach"| gate1
@@ -87,10 +86,10 @@ flowchart TD
   packet --> gate2
 
   gate2[["GATE 2 — VALIDATE · AUTOMATED<br/>loop auto-approves on green validation (decided_by=auto)"]]:::sys
-  gate2 --> merge[["Auto-merge to the staging branch"]]:::sys
-  merge --> resync[["Re-sync files to DB"]]:::sys
-  resync --> g3deploy[["evolve-uat (tracks the staging branch): deploy via the deploy command ($EVOLVE_DEPLOY_CMD)"]]:::sys
-  g3deploy --> gate3[/"GATE 3 — verify: operator + PM test it live on evolve-uat"/]:::gate
+  gate2 --> merge[["Auto-merge feature → the staging branch"]]:::sys
+  merge --> preverify["Pre-verify: live acceptance on the TEST host against the merged staging branch"]:::box2
+  preverify --> push[["Push origin/staging — the loop's ONE push to GitHub"]]:::sys
+  push --> gate3[/"GATE 3 — verify: the OPERATOR deploys the staging branch to their UAT box ($EVOLVE_DEPLOY_CMD) + tests it live with their PM"/]:::gate
   gate3 -->|"✓ works"| close[["Close the GitHub issue"]]:::sys
   close --> e_done(["Verified + issue closed — per-change done"]):::event
   gate3 -->|"✗ code bug (spec still valid) → resume"| impl
@@ -110,24 +109,21 @@ flowchart TD
   classDef gate fill:#fdf1d6,stroke:#caa23a,color:#4a3a0e;
   classDef gw fill:#fdeaea,stroke:#cc6666,color:#4a1616;
   classDef box2 fill:#e6f7f8,stroke:#3fa6ad,color:#0e3b3e;
+  classDef future fill:#f5f5f5,stroke:#9a9a9a,color:#555,stroke-dasharray:4 3;
 ```
 
 ### Reading it
 
-- **Four intake lanes — two reactive, two proactive:**
-  - **Reactive:** *GitHub issues* and *PRs* (one connector, no in-app tracker) → **Triage**.
-  - **Proactive A — Feature-proposer agent (cadence):** generates new-feature proposals
-    from the charter + request clusters + C/F/S coverage gaps → enters the **Lead** spec
-    phase (already vision-aligned). (Distinct from the spec-phase **Design** agent inside
-    the Lead, which sets the *how* for an accepted item.)
-  - **Proactive B — QA / bug-discovery (cadence):** a *separate* system running four
-    detectors in parallel — **variance/drift** (code vs. approved spec), the
-    **regression suite**, a **code-audit** agent (defects in the *code*), and a
-    **spec-audit** agent (gaps/holes/naive assumptions in the *C/F/S* itself) —
-    whose findings become **bug or spec-gap** work items → **Triage**.
-- **Variance fast-path** (dashed): a *pure* code-vs-approved-spec drift skips
-  Spec-author **and** Gate 1 (the intent was approved when the spec was) → straight
-  to **Prioritize**, then implement → validate → Gate 2.
+- **Intake — one lane is BUILT, three are designed (dashed 🚧 in the graph):**
+  - **Built:** *GitHub issues* → **Triage** (one connector, no in-app tracker; PRs are
+    deliberately excluded by the connector today).
+  - **Designed, not built:** PR canonicalization; a **feature-proposer** cadence (proposals
+    from the charter + request clusters + C/F/S coverage gaps); and a **QA/bug-discovery
+    sweep** (variance/drift detector, regression suite, code-audit, spec-audit — its
+    variance fast-path would skip Spec-author and Gate 1, since a pure drift's intent was
+    approved when the spec was). `engine/variance.py` exists as substrate; nothing triggers
+    it yet. Issues filed by agents mid-run (the incidental scout) arrive through the built
+    lane like any other issue.
 - **The funnel — cheap gates BEFORE the expensive spec phase (so it scales).** After
   Triage rejects junk (duplicate / malicious / invalid), **Vision-fit** judges scope (the
   **product charter + the target Capability's scope**) — *features only*, since a bug fixes
@@ -165,11 +161,14 @@ flowchart TD
   brings in **Security / Architecture / Interop / UX**, **arbitrates**, and is the single
   agent that hands the human a synthesized **proposal + recommendation** at Gate 1. Every
   agent (the Lead included) emits a plain-language `summary` and gets its own UI panel.
-- **Gate 1** (approve intent) → autonomous **implement + author tests** on the evolve-brain
-  branch → **evolve-test** validates with Playwright → loop **failing→retry** / **stuck→
-  escalate** / **green→packet** → **Gate 2 (validate — AUTOMATED: the loop auto-approves on green,
-  `decided_by=auto`)** → **auto-merge to the staging branch** → **re-sync**. Gate 1 can **bounce back**
-  ("change this"); a red validation instead loops Gate 2 back to implement on its own — nothing publishes.
+- **Gate 1** (approve intent) → autonomous **implement + author the bound tests** in an isolated
+  worktree on the brain host → the **test host** validates (bound tests + live acceptance through
+  the project's REAL interface, per the charter's project-kind) → loop **failing→retry** /
+  **stuck→escalate** / **green→packet** → **Gate 2 (validate — AUTOMATED: the loop auto-approves
+  on green, `decided_by=auto`)** → **auto-merge to the staging branch** → **pre-verify live on the
+  test host** → **push the staging branch to origin** (the loop's one GitHub push). Gate 1 can
+  **bounce back** ("change this"); a red validation instead loops Gate 2 back to implement on its
+  own — nothing publishes.
 - **Every _operator_ gate (Gate 1 and Gate 3) has a human-in-the-loop *and their PM*.** (Gate 2,
   validate, is automated — the loop auto-approves it on green, with no operator and no PM.) An operator
   gate is not the operator alone
@@ -188,8 +187,9 @@ flowchart TD
   session.)
 - **Gate 3 — verify (acceptance): merge is NOT done.** Auto-merge ships a *candidate* to the staging
   branch; "shipped" ≠ "works." So the canonical `/loop` flow continues *past* merge into a **`verify`**
-  phase (now shown in the main graph above): the staging branch is deployed to **evolve-uat, a separate
-  UAT host that tracks the staging branch**, the **operator + their PM test it live**, and only then —
+  phase (now shown in the main graph above): the **operator deploys the pushed staging branch to
+  their own UAT box** (`$EVOLVE_DEPLOY_CMD` — the UAT host is never touched by the loop), the
+  **operator + their PM test it live**, and only then —
   `✓ works` **closes the GitHub issue** (per-change done), or `✗ broken` resumes the SAME conversation: a
   localized **code bug** → re-implement → Gate 2; a **wrong approach** → re-design → rewrite spec →
   re-review → Gate 1. See [§ Gate 3 below](#gate-3--verify-acceptance-loop) for the close-up. (evolve-uat
@@ -211,8 +211,9 @@ flowchart TD
     the bound tests — it never builds or merges.
   - On the green Gate-2 auto-approval, evolve-brain merges `feature → $EVOLVE_STAGING_BRANCH` (local) and **pushes
     the staging branch** to origin.
-  - **evolve-uat tracks the staging branch**: the deploy command (`$EVOLVE_DEPLOY_CMD`, a plain
-    `git pull`) deploys the candidate so the operator + PM verify *exactly what will ship*.
+  - **The UAT host tracks the staging branch**: the OPERATOR runs the deploy command
+    (`$EVOLVE_DEPLOY_CMD`) there to deploy the candidate, so they + their PM verify *exactly
+    what will ship*. The loop never deploys to UAT.
   - The operator then merges **`$EVOLVE_STAGING_BRANCH → $EVOLVE_WORLD_BRANCH`** (the publish gate; the
     world branch is branch-protected). The world branch is the world — nothing reaches it except that
     deliberate merge, so evolve-brain / the agents can never touch production directly.
@@ -220,8 +221,8 @@ flowchart TD
 ### Gate 3 — verify (acceptance loop)
 
 **Merge is not done.** Auto-merge ships a *candidate* to the staging branch, but "shipped" ≠ "works." So
-after merge an item enters a **`verify`** phase: the staging branch is deployed to **evolve-uat, a separate
-UAT host that tracks the staging branch** (a dedicated mock-data box, via the deploy command
+after merge (and the loop's pre-verify on the test host) an item enters a **`verify`** phase: the
+**operator deploys the staging branch to their UAT box** (a dedicated mock-data machine, via
 `$EVOLVE_DEPLOY_CMD`), the **operator and their PM test it live** (the PM operates the gate on the
 operator's explicit say-so), and only then confirm.
 

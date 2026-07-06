@@ -273,7 +273,8 @@ def capability_from_root(specs_root: str) -> str:
 # --------------------------------------------------------------------------- #
 if __name__ == "__main__":
     import sys
-    root = sys.argv[1] if len(sys.argv) > 1 else "apps/evolve/specs"
+    root = sys.argv[1] if len(sys.argv) > 1 else sys.exit(
+        "usage: pass the specs root to project (e.g. specs/ or <unit>/specs)")
     repo = os.getcwd()
     recs, report = load_and_validate(root, repo_root=repo, capability=capability_from_root(root))
     caps = sum(r.kind == "capability" for r in recs)

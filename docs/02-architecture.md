@@ -26,8 +26,8 @@ flowchart TB
 
   gh -- "issue changes (polled)" --> loop
   loop -- "runs · gates · events" --> dash
-  human -- "review + decide gates" --> dash
-  dash -- "decisions (parent decide-token)" --> loop
+  human -- "review + decide gates (parent decide-token)" --> dash
+  dash -- "decided gates (polled via service token)" --> loop
   loop -- "cut branch · deploy candidate" --> test
   test -- "acceptance evidence" --> loop
   loop -- "merge → staging · push" --> gh
@@ -55,8 +55,9 @@ One change, machine by machine:
 
 1. **Issue → brain.** A GitHub issue lands; on its next pass the brain (`/loop /evolve`)
    sees it isn't in run state yet and opens a run, `ev-<n>`.
-2. **Brain → dashboard.** As the swarm works — security screen, reproduce, triage, the
-   spec phase — the brain reports the run, each agent's start/end, and notable lines to the
+2. **Brain → dashboard.** As the swarm works — triage, then (for features) vision-fit and
+   prioritize, then the spec phase opening with the security screen + reproduce — the brain
+   reports the run, each agent's start/end, and notable lines to the
    dashboard over HTTP. You watch the live feed on evolve-admin.
 3. **Park at a gate → human decides.** When a segment reaches a gate, the brain writes the
    full packet, posts it to the dashboard, and **ends the pass**. The item parks. On the
@@ -66,11 +67,13 @@ One change, machine by machine:
    decided gates, picks the approval up, and runs the next segment — implementing in an
    isolated worktree, running the optional dependency guard (if one is configured).
 5. **Brain → test → validates.** The brain deploys the candidate to evolve-test and drives
-   live acceptance (Playwright UI + chat), judging on captured evidence (tool-calls, DB
-   state, screenshots) — not vibes. Green → Gate 2; red → it loops or escalates.
+   live acceptance through the project's **real interface**, per the charter's project-kind
+   (a UI driver for a web app, the command for a CLI, the request for an API), judging on
+   captured evidence (tool-calls, DB state, screenshots) — not vibes. Green → Gate 2; red →
+   it loops or escalates.
 6. **Merge → push.** On a **green validation** the brain auto-approves Gate 2 itself
    (`decided_by=auto`) and merges the feature branch to the staging branch and pushes it.
-7. **Staging → UAT → verify.** The staging branch deploys to evolve-uat. The item parks at
+7. **Staging → UAT → verify.** You deploy the staging branch to evolve-uat. The item parks at
    Gate 3. You test it live. ✓works closes the GitHub issue; ✗broken resumes the *same* run.
 8. **Close.** Only on your verify does Evolve close the issue — closing the loop.
 
@@ -161,9 +164,10 @@ parked items simply wait for a decided gate that a future pass will pick up. (Se
 State is split across three places, by owner:
 
 - **The dashboard's SQLite store** (`dashboard/store.py`, default `~/.evolve/dashboard.db`,
-  WAL mode) — the operator-facing truth. Three tables: `run` (status/phase/agent per
+  WAL mode) — the operator-facing truth. Four tables: `run` (status/phase/agent per
   `instance_id`), `gate_queue` (the parked gate, its full JSON `packet`, the decision, who
-  decided, the note), and `activity` (the streamed agent events). Upserts merge — a null
+  decided, the note), `activity` (the streamed agent events), and `issue_allowlist` (the
+  manual-intake admissions). Upserts merge — a null
   field never clobbers an existing value (COALESCE on every nullable column).
 - **The brain's run state** (`$EVOLVE_STATE_DIR/<n>/`, default `~/.evolve/runs`) — the engine-side truth for one run:
   `state.json` (issue#, `instance_id`, title, source, `from_operator`, `phase`,

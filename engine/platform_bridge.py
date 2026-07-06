@@ -2,18 +2,15 @@
 
 The engine pushes a parked gate's review packet to the platform over HTTP (POST /gates),
 where the operator sees it and decides; a poller reads decided rows back so the engine
-can resume. This is the box-1 -> platform side of EVOLVE.md §9 (the work queue). stdlib
+can resume. This is the box-1 -> platform side of the work-queue design. stdlib
 only. Config via env (set in .env — no operator-specific host or credential is committed):
-    EVOLVE_SERVER_URL      the Evolve dashboard base URL; defaults to localhost only
-    EVOLVE_SERVICE_TOKEN  long-lived service token (preferred auth)
-    EVOLVE_DASHBOARD_USER  username for the local-dev login fallback
-    EVOLVE_DASHBOARD_PASS  password for the local-dev login fallback (no default)
+    EVOLVE_SERVER_URL     the Evolve dashboard base URL; defaults to localhost only
+    EVOLVE_SERVICE_TOKEN  long-lived service token (auth; optional for a loopback
+                          token-less dev dashboard)
 """
 import json
 import os
 import urllib.request
-
-_token_cache = {"tok": None}
 
 
 def _base() -> str:
@@ -30,42 +27,25 @@ def _post(path: str, body: dict, token: str | None = None) -> dict:
         return json.loads(r.read().decode())
 
 
-def _get(path: str, token: str) -> dict:
-    req = urllib.request.Request(_base() + path, headers={"Authorization": f"Bearer {token}"})
+def _get(path: str, token: str | None = None) -> dict:
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    req = urllib.request.Request(_base() + path, headers=headers)
     with urllib.request.urlopen(req, timeout=20) as r:
         return json.loads(r.read().decode())
 
 
-def auth() -> str:
-    """The brain authenticates to the operator platform with a long-lived SERVICE
-    token (EVOLVE_SERVICE_TOKEN) — minted on the admin host via scripts/service_token.py.
-    Its is_service flag permits POSTing gates but NOT deciding them (least privilege).
-    Falls back to an admin login only for local dev (box 2)."""
-    if _token_cache["tok"]:
-        return _token_cache["tok"]
-    svc = os.getenv("EVOLVE_SERVICE_TOKEN")
-    if svc:
-        _token_cache["tok"] = svc
-        return svc
-    user = os.getenv("EVOLVE_DASHBOARD_USER", "admin")
-    pw = os.getenv("EVOLVE_DASHBOARD_PASS", "")  # no committed default credential
-    if not pw:
-        raise RuntimeError("set EVOLVE_SERVICE_TOKEN (preferred) or EVOLVE_PLATFORM_PASS in .env")
-    try:
-        _post("/auth/login", {"username": user})  # step 1: existence/typo check
-    except Exception:
-        pass
-    res = _post("/auth/login", {"username": user, "password": pw})
-    if not res.get("token"):
-        raise RuntimeError(f"platform login failed (no EVOLVE_SERVICE_TOKEN set): {res}")
-    _token_cache["tok"] = res["token"]
-    return res["token"]
+def auth() -> str | None:
+    """The service token the engine authenticates with (EVOLVE_SERVICE_TOKEN — its
+    is_service role permits POSTing gates but NOT deciding them). Returns None when no
+    token is configured: the dashboard's token-less local-dev mode (loopback only)
+    accepts unauthenticated mutations, so requests are simply sent bare."""
+    return os.getenv("EVOLVE_SERVICE_TOKEN") or None
 
 
 # --- offline outbox -----------------------------------------------------------
 # The dashboard can go down during a redeploy. Rather than lose the agents' status/gate
 # post-backs, buffer them on the brain and flush in FIFO order once the dashboard is reachable
-# again — every write reconciles on the dashboard exactly once, in order, when it's back up.
+# again — every write reconciles on the dashboard, in order, when it's back up.
 import socket
 import urllib.error
 
@@ -73,54 +53,94 @@ _OUTBOX = os.path.expanduser(os.getenv("EVOLVE_OUTBOX", "~/.evolve/outbox.jsonl"
 
 
 def _is_conn_error(e: Exception) -> bool:
-    # connection-level failure (dashboard down/unreachable) — NOT an HTTP 4xx/5xx (a real error
-    # that retrying won't fix, so we must not buffer it forever).
+    # connection-level failure (dashboard down/unreachable) — NOT an HTTP status error.
     if isinstance(e, urllib.error.HTTPError):
         return False
     return isinstance(e, (urllib.error.URLError, socket.timeout, ConnectionError, OSError))
 
 
+def _is_transient_http(e: Exception) -> bool:
+    """HTTP errors worth KEEPING in the queue: 5xx (dashboard restarting/broken),
+    429 (throttled), and 401/403 (token rotation mid-buffer — the operator fixes the
+    token and the queue drains). Only a permanent 4xx (bad request/unknown route) is
+    poison to drop; dropping a buffered gate push on a transient error would strand
+    the work item parked forever with no gate card the operator can ever see."""
+    return isinstance(e, urllib.error.HTTPError) and (
+        e.code >= 500 or e.code in (401, 403, 429))
+
+
+class _outbox_lock:
+    """Cross-process file lock around outbox read-modify-write. evolve CLIs run as
+    separate short-lived processes; without this, two concurrent flush/enqueue calls
+    clobber each other's entries (one rewrites the file while the other appends)."""
+
+    def __enter__(self):
+        os.makedirs(os.path.dirname(_OUTBOX) or ".", exist_ok=True)
+        self._fh = open(_OUTBOX + ".lock", "w")
+        try:
+            import fcntl
+            fcntl.flock(self._fh, fcntl.LOCK_EX)
+        except ImportError:  # non-POSIX: best-effort (single-writer setups)
+            pass
+        return self
+
+    def __exit__(self, *exc):
+        try:
+            import fcntl
+            fcntl.flock(self._fh, fcntl.LOCK_UN)
+        except ImportError:
+            pass
+        self._fh.close()
+        return False
+
+
 def _enqueue(path: str, body: dict) -> None:
-    os.makedirs(os.path.dirname(_OUTBOX), exist_ok=True)
-    with open(_OUTBOX, "a") as f:
-        f.write(json.dumps({"path": path, "body": body}) + "\n")
+    with _outbox_lock():
+        with open(_OUTBOX, "a") as f:
+            f.write(json.dumps({"path": path, "body": body}) + "\n")
 
 
 def _flush() -> None:
-    """Deliver buffered post-backs in order; stop at the first connection error (dashboard still down)."""
+    """Deliver buffered post-backs in order; stop at the first connection/transient
+    error (dashboard down, restarting, or token rotated) — keep those and the rest."""
     if not os.path.exists(_OUTBOX):
         return
-    lines = [l for l in open(_OUTBOX).read().splitlines() if l.strip()]
-    if not lines:
-        return
-    try:
+    with _outbox_lock():
+        if not os.path.exists(_OUTBOX):
+            return
+        lines = [l for l in open(_OUTBOX).read().splitlines() if l.strip()]
+        if not lines:
+            return
         token = auth()
-    except Exception:
-        return                                   # can't even auth → leave the queue intact
-    done = 0
-    for line in lines:
-        try:
-            item = json.loads(line)
-            _post(item["path"], item["body"], token)
-            done += 1
-        except Exception as e:
-            if _is_conn_error(e):
-                break                            # dashboard still down — keep this and the rest
-            done += 1                            # poison/HTTP error → drop it, don't block the queue
-    tail = lines[done:]
-    if tail:
-        open(_OUTBOX, "w").write("\n".join(tail) + "\n")
-    elif os.path.exists(_OUTBOX):
-        os.remove(_OUTBOX)
+        done = 0
+        for line in lines:
+            try:
+                item = json.loads(line)
+                _post(item["path"], item["body"], token)
+                done += 1
+            except Exception as e:
+                if _is_conn_error(e) or _is_transient_http(e):
+                    break                        # still down / retryable — keep this and the rest
+                # genuinely poison (bad payload, permanent 4xx): drop it, but say so —
+                # a silent drop of a gate push is exactly the failure this queue exists to stop.
+                import sys
+                print(f"evolve outbox: dropping poison entry ({e}): {line[:200]}", file=sys.stderr)
+                done += 1
+        tail = lines[done:]
+        if tail:
+            open(_OUTBOX, "w").write("\n".join(tail) + "\n")
+        elif os.path.exists(_OUTBOX):
+            os.remove(_OUTBOX)
 
 
 def _send(path: str, body: dict) -> dict:
-    """Resilient write: flush any backlog first, then post — buffering this one if the dashboard is down."""
+    """Resilient write: flush any backlog first, then post — buffering this one if the
+    dashboard is down or answering with a transient error."""
     _flush()
     try:
         return _post(path, body, auth())
     except Exception as e:
-        if _is_conn_error(e):
+        if _is_conn_error(e) or _is_transient_http(e):
             _enqueue(path, body)
             return {"queued": True, "path": path}
         raise

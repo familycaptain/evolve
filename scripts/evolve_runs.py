@@ -156,17 +156,27 @@ def main():
         # close the loop — only after the operator verifies the shipped change works
         from engine import github_connector as gh
         iid = str(a.iid)
-        num = int(iid.split("-")[-1])
-        # Resolve the item's OWN repo so close targets the right one — NOT the default platform repo.
-        # (Multi-repo bug: closing ev-<app-slug>-N used to close platform#N, a different repo's issue.)
-        repo = None
+        # Resolve BOTH the issue number and the repo from the item's state file — the id
+        # suffix is not reliably the issue number for multi-repo slugged ids, and a
+        # non-numeric suffix would crash int().
+        repo, num = None, None
         sid = iid[3:] if iid.startswith("ev-") else iid
         sd = os.path.join(os.path.expanduser(os.getenv("EVOLVE_STATE_DIR") or "~/.evolve/runs"), sid, "state.json")
         try:
             with open(sd) as _f:
-                repo = (json.load(_f).get("repo") or None)
+                _st = json.load(_f)
+            repo = _st.get("repo") or None
+            src = _st.get("source") or ""
+            if src.startswith("github:") and "#" in src:
+                num = int(src.split("#", 1)[1])
         except Exception:
-            repo = None
+            pass
+        if num is None:
+            tail = iid.split("-")[-1]
+            if not tail.isdigit():
+                raise SystemExit(f"cannot resolve an issue number for {iid!r} "
+                                 "(no state-file source, non-numeric id suffix)")
+            num = int(tail)
         print(gh.close_issue(num, comment=a.comment, repo=repo))
     elif a.cmd == "flush":
         n = len(open(bridge._OUTBOX).read().splitlines()) if os.path.exists(bridge._OUTBOX) else 0

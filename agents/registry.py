@@ -41,7 +41,7 @@ TRIAGE_OUT = _obj({
     "belongs_to": _STR,                           # where the FIX lives: "platform" (this repo) or an
                                                   # external app-package name Evolve here can't build
     "rationale": _STR,
-}, ["summary", "kind", "rationale"])               # spec_status + belongs_to prompt-mandated; optional in schema
+}, ["summary", "disposition", "kind", "rationale"])  # disposition IS the reject/proceed switch — its absence must fail validation, not default downstream
 
 # Gate-1 issue-intent screen — runs FIRST (before reproduction), classifies the raw issue's intent so a
 # maliciously-worded issue can never weaponize the reproduce step.

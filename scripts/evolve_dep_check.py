@@ -36,7 +36,11 @@ _APP_NS = _APP_DIR   # the Python import namespace mirrors the unit directory na
 
 def _changed_py():
     files = set()
-    for args in (["diff", "--name-only", BASE], ["diff", "--name-only", BASE, "--cached"]):
+    # BASE...HEAD (merge-base), not BASE..: two-dot blames this branch for commits that
+    # landed on the base AFTER the feature was cut — the guard would fail a build for
+    # imports someone else added. Matches workspace.changed_files.
+    for args in (["diff", "--name-only", f"{BASE}...HEAD"], ["diff", "--name-only", "HEAD"],
+                 ["diff", "--name-only", "--cached"]):
         out = subprocess.run(["git", "-C", REPO, *args], text=True, capture_output=True).stdout
         files.update(l.strip() for l in out.splitlines() if l.strip())
     return [f for f in files if f.endswith(".py") and os.path.exists(os.path.join(REPO, f))]

@@ -90,7 +90,8 @@ def baseline_for(record: Record, *, repo_root: str) -> dict[str, str]:
 if __name__ == "__main__":
     import sys
     from engine import schema
-    root = sys.argv[1] if len(sys.argv) > 1 else "apps/evolve/specs"
+    root = sys.argv[1] if len(sys.argv) > 1 else sys.exit(
+        "usage: pass the specs root to project (e.g. specs/ or <unit>/specs)")
     recs, _ = schema.load_and_validate(root, repo_root=os.getcwd(),
                                        capability=schema.capability_from_root(root))
     vs = detect(recs, repo_root=os.getcwd())

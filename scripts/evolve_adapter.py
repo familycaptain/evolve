@@ -46,7 +46,7 @@ def _manifest() -> tuple[str, dict]:
     name = (os.getenv("EVOLVE_ADAPTER") or "").strip()
     if not name:
         sys.exit("EVOLVE_ADAPTER is not set — point it at an adapter directory under adapters/ "
-                 "(e.g. `EVOLVE_ADAPTER=skipper` in .env). See adapters/example/.")
+                 "(e.g. `EVOLVE_ADAPTER=myproject` in .env). See adapters/example/.")
     path = os.path.join(ROOT, "adapters", name, "adapter.yaml")
     if not os.path.exists(path):
         sys.exit(f"adapter manifest not found: adapters/{name}/adapter.yaml (EVOLVE_ADAPTER={name}).")

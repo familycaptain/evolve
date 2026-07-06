@@ -56,8 +56,8 @@ flowchart LR
   uat["✅ evolve-uat<br/>human gate-3 verify"]
 
   gh -- "issue changes (polled)" --> loop
-  human -- "review + decide gates" --> dash
-  dash -- "decisions (parent decide-token)" --> loop
+  human -- "review + decide gates (parent decide-token)" --> dash
+  dash -- "decided gates (polled via service token)" --> loop
   loop -- "runs · gates · events" --> dash
   loop -- "cut branch · deploy candidate" --> test
   test -- "acceptance evidence" --> loop
@@ -95,17 +95,19 @@ One issue, start to finish. Two human-facing machines are live: **evolve-admin**
    state yet, and opens a run — `ev-42`. On **evolve-admin** you watch `ev-42` appear in the dashboard
    with a live feed of what each agent is doing.
 
-3. **Security screen → reproduce (with before-evidence).** Before any code is read, a **security agent**
+3. **Triage — the intake funnel.** The item is **triaged** first (bug vs feature, deduped, linked to
+   existing specs); a feature would also pass **vision-fit** (scope against the charter) and
+   **prioritize**. This one is a clear bug, so it survives the funnel.
+
+4. **The spec phase — security screen → reproduce (with before-evidence), then the swarm.** Before any
+   code is read, a **security agent**
    screens the issue's *intent* (a real bug report — not someone trying to weaponize the engine). It
    clears, so a **reproduce agent** deploys the current staging branch to **evolve-test**, opens the
    Settings page in a real browser, tries to save, and watches the spinner hang. It then **screenshots
    the broken state and posts it to the GitHub issue as before-evidence** — the engine's built-in
    `attach_image_to_issue` uploads the shot to **catbox.moe** and comments it inline on the issue (so it
    renders even on a private repo). *(catbox is the **default** image host — set `EVOLVE_IMAGE_UPLOAD_CMD` to use any host you want.)* *(If it couldn't reproduce, that's a first-class outcome: it parks at
-   Gate 1 saying so and invents no fix.)*
-
-4. **Triage → the spec phase.** The reproduced item is triaged (bug vs feature, deduped, linked to
-   existing specs). Because it's a bug with a proven surface, a small swarm goes to work: an agent
+   Gate 1 saying so and invents no fix.)* With the surface proven, a small swarm goes to work: an agent
    **grounds** in the real code, a **design** agent sets the approach, a **spec-author** writes the
    change as a spec + a bound test, **reviewers** (security / architecture / interop / UX) weigh in, and
    a **lead** agent arbitrates it all into one recommendation.
@@ -129,7 +131,8 @@ One issue, start to finish. Two human-facing machines are live: **evolve-admin**
    issue**, and the reviewers' verdicts), merges the change to your **staging branch**, and pushes it. *(A
    red validation instead loops back to re-implement — nothing is published.)*
 
-8. **Gate 3 — you verify it for real.** The staging branch deploys to **evolve-uat** and `ev-42` parks at
+8. **Gate 3 — you verify it for real.** You deploy the staging branch to **evolve-uat** yourself (the
+   loop never touches UAT) and `ev-42` parks at
    **Gate 3**. You (or a teammate) actually open the Settings page on the UAT box and save a profile — and
    it saves. It works → you mark it verified and the engine **closes the GitHub issue**. *(If it didn't,
    you bounce it back and the same run resumes — no new conversation.)*
@@ -206,7 +209,7 @@ curated prompt + a typed output contract (`agents/registry.py`).
    - `cp CHARTER.example.md CHARTER.md` → what your product **is** and **isn't** (the vision authority
      every agent grounds against; `CHARTER.skipper-example.md` is a filled-in real example).
    - Drop your **target adapter** into `adapters/<name>/` (deploy/validate/seed recipes for your stack;
-     `adapters/example/` is a real, scrubbed reference).
+     `adapters/example/` is a neutral reference skeleton).
 3. **Install Claude Code** on the VMs + authenticate Claude. On evolve-admin, install the dashboard deps:
    `pip install -r dashboard/requirements.txt`.
 4. **Start it:** run the dashboard on **evolve-admin** (`uvicorn dashboard.server:app --host 0.0.0.0 --port 8000`) +
@@ -234,7 +237,8 @@ Three tokens go in `.env` (full notes are inline in `.env.example`):
   (`charter.py`, `base.py`) *(genericized)*.
 - `engine/` — runtime modules: `platform_bridge` (→ the dashboard), `github_connector`, `workspace`,
   and the C/F/S substrate (`store`/`schema`/`cost`/`variance`/`spec_index`) *(pulled + genericized)*.
-- `scripts/` — the engine CLIs: `evolve_runs` / `evolve_explain` / `evolve_decide` / `evolve_dep_check`.
+- `scripts/` — the engine CLIs: `evolve_runs` / `evolve_explain` / `evolve_decide` / `evolve_dep_check`,
+  plus `evolve_adapter` (the adapter binding — deploy/health/acceptance/seed/scaffold for your product).
 - `dashboard/` — the standalone local web server + SQLite store + SPA (runs/gates/repo-switcher,
   two-token auth) *(built)*.
 - `adapters/example/` — the target-adapter interface *(tracked)*; `adapters/<name>/` — your adapter

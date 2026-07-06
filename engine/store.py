@@ -8,7 +8,7 @@ The projection backend is pluggable. Two are provided here with no external deps
   - InMemoryBackend : default, used standalone + in tests
   - SqliteBackend   : a real persistent projection (stdlib sqlite3)
 The platform integration is a third backend (Postgres via app_platform.db) — staged
-as PostgresBackend below but NOT exercised until the platform hosts this app.
+as PostgresBackend below (a staged host-integration stub; not exercised).
 """
 from __future__ import annotations
 
@@ -132,17 +132,14 @@ class SqliteBackend:
 
 
 class PostgresBackend:
-    """Platform projection (app_<id> schema via app_platform.db). STAGED — not yet
-    exercised; wired when the platform hosts apps/evolve. Mirrors the SqliteBackend
-    contract using execute_in_schema / fetch_* helpers (see migrations/001)."""
+    """STAGED stub for projecting the corpus into a host application's own database
+    (when Evolve runs embedded in a target product rather than standalone). Not yet
+    exercised anywhere; standalone installs use InMemory/Sqlite."""
 
-    SCHEMA = "app_evolve"
-
-    def __init__(self) -> None:  # pragma: no cover - needs the platform
+    def __init__(self) -> None:  # pragma: no cover - staged
         raise NotImplementedError(
-            "PostgresBackend is staged for platform integration (see apps/evolve/"
-            "migrations/001_cfs_tables.sql + app_platform.db). Use InMemory/Sqlite "
-            "standalone.")
+            "PostgresBackend is a staged host-integration stub. Use the InMemory or "
+            "Sqlite backend.")
 
 
 # --------------------------------------------------------------------------- #
@@ -192,7 +189,8 @@ class Store:
 
 if __name__ == "__main__":   # quick manual projection of the real tree
     import sys
-    root = sys.argv[1] if len(sys.argv) > 1 else "apps/evolve/specs"
+    root = sys.argv[1] if len(sys.argv) > 1 else sys.exit(
+        "usage: pass the specs root to project (e.g. specs/ or <unit>/specs)")
     store = Store(SqliteBackend(":memory:"))
     rep = store.boot_sync(root, repo_root=os.getcwd(),
                           capability=schema.capability_from_root(root), on_main=True)

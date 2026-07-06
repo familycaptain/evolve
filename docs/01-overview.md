@@ -30,7 +30,7 @@ scarce resource, so spend it only at the gates.
 issues in  →  the loop (agent swarm)  →  human gates  →  shipped
 ```
 
-- **Issues come in** from GitHub (a teammate, a user, or a proactive QA/feature agent).
+- **Issues come in** from GitHub (a teammate, a user, or an agent filing an incidental finding).
 - **The loop** picks the most-ready item and advances it through the funnel and spec
   phase, narrating every agent's work to the dashboard.
 - **At each operator gate** the item parks and waits for *you* — it never auto-decides. (The one
@@ -50,7 +50,7 @@ issues in  →  the loop (agent swarm)  →  human gates  →  shipped
   `ev-42`). One issue is one run is one continuous conversation, for life: it is grounded
   once and resumed on every later pass, never restarted.
 
-- **The agent swarm** — ~21 single-responsibility role agents (a triage agent, a security
+- **The agent swarm** — 20 single-responsibility role agents (a triage agent, a security
   screen, a reproduce agent, grounding/design/spec-author/spec-audit, four reviewers —
   security, architecture, interop, UX — a lead, an implement agent, a validate agent, and
   more). Each has a curated prompt and a structured output contract. They are coordinated
@@ -79,7 +79,7 @@ issues in  →  the loop (agent swarm)  →  human gates  →  shipped
 
 - **The target adapter** — the one project-specific bit of automation: how to deploy and
   test *your* project. It lives in `adapters/<name>/` (with `adapters/example/` as a
-  scrubbed reference). The engine invokes it to deploy candidates to the test/UAT machines
+  neutral reference). The engine invokes it to deploy candidates to the test/UAT machines
   and to drive live validation. See [Target Adapters](06-target-adapters.md). *(The engine invokes it via `scripts/evolve_adapter.py <op>`, which runs the adapter's `adapter.yaml`.)*
 
 - **The PM / `/evolve-pm`** — *you*, with an AI partner at the gates. The PM is a Claude

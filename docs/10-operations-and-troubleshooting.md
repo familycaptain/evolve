@@ -28,7 +28,7 @@ tells you exactly what state it's in and who it's waiting on.
 | **Building** (`build`, or `new` actively running) | An agent segment is in progress (implementing, validating, running the spec phase). | **Let it run.** Watch the live agent feed in the dashboard. Don't intervene mid-segment. |
 | **Stranded mid-build** (`new` or `build` with **no** pending decision and no agent active) | A pass was interrupted *during* the segment — the session ended or hit a usage limit mid-work, so the item froze (e.g. a run stuck at "building" after the build pass died mid-implement). | **Nothing** — the loop self-heals. The next pass detects it (`evolve_runs.py stranded` returns exactly the `new`/`build` dirs) and **resumes it from its files** (see §2). If it never moves, see §6. |
 | **Rejected** (`rejected`) | You rejected it at a gate (or triage rejected junk). Terminal. The worktree is torn down. | Nothing. To revisit, re-file the issue. |
-| **Parked** (`parked`) | Prioritize set it aside as the long tail (below the surface threshold). Terminal until re-surfaced. | Nothing required. It's recorded, not lost. |
+| **Parked** (`parked`) | Prioritize set it aside as the long tail (below the surface threshold). | Nothing required. It's recorded, not lost — when the loop is otherwise idle it **auto-promotes** the highest-scored parked items into a spec phase + Gate 1 (capped at 3 waiting), so you may see gate packets marked "promoted from park". |
 | **Done** (`done`) | Verified working; the GitHub issue is closed. Terminal. | Nothing. The loop closed it. |
 
 The key distinction: **a phase `gate1`/`verify` with no decision is *parked on
@@ -124,8 +124,8 @@ the design's open decisions, each agent's full findings, the validation result, 
 and (for Gate 2) whether a diff is available. The GET endpoints need no auth; the service
 token is sent as a Bearer if present and is never printed.
 
-The loop itself reads state with `scripts/evolve_runs.py` (`list` is the human view above;
-the loop uses `pending` / `stranded` / `decision <id>` internally).
+The `list` human view above is an `evolve_explain.py` subcommand. The loop itself reads
+state with `scripts/evolve_runs.py` (`pending` / `stranded` / `decision <id>`).
 
 ### Deciding — `scripts/evolve_decide.py` (operator machine only)
 
@@ -219,8 +219,7 @@ Evolve measures spend and can cap it. From `engine/cost.py`:
 - A monthly budget acts as a **kill-switch**: once month-to-date spend reaches the cap, the
   engine refuses further agent calls and Evolve pauses until the next month or you raise the
   cap (`BudgetGuard.over_budget()`).
-- **Per-run spend** is summed per `instance_id`, which is how the dashboard's mission-control
-  view shows a live running cost per work item; `evolve_explain.py` prints it as `spend` in
+- **Per-run spend** is summed per `instance_id`; `evolve_explain.py` prints it as `spend` in
   a run's digest when present.
 
 Read the month-to-date report from the CLI:

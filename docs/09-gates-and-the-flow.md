@@ -68,9 +68,9 @@ build is **never** green, so it is never auto-approved: it loops back to impleme
 
 ### Gate 3 — *verify* it works live (then it closes)
 
-**Merge is not done.** The automated Gate-2 approval auto-merges a *candidate* to the staging branch and
-deploys it to the **UAT machine** (a separate, mock-data host that tracks the staging
-branch). The question is:
+**Merge is not done.** The automated Gate-2 approval auto-merges a *candidate* to the staging branch
+and pushes it to origin; you deploy that staging branch to the **UAT machine** (a separate,
+mock-data host that tracks the staging branch). The question is:
 
 > *Does it really work when I use it for real?*
 
@@ -88,7 +88,7 @@ automated — it has no operator verbs; the loop decides it from the validation 
 | | **Approve** | **Change** ("change this") | **Reject** |
 |---|---|---|---|
 | **Gate 1** | Build it. The item enters the build phase: implement → tests → validate → Gate 2. | Bounce back to the spec phase with your note (the design re-frames, the spec is reworked, re-review), then re-push Gate 1. | Drop the item; the run is marked rejected. |
-| **Gate 2** *(automated — no operator action)* | On a **green** validation the loop auto-approves it itself (`decided_by=auto`), merges to the staging branch, deploys to UAT, and opens Gate 3. | *(n/a — a **red** validation instead loops back to **implement** automatically; nothing publishes.)* | *(n/a)* |
+| **Gate 2** *(automated — no operator action)* | On a **green** validation the loop auto-approves it itself (`decided_by=auto`), merges to the staging branch, **pre-verifies** the merged branch live on the test host, pushes `origin/<staging>`, and opens Gate 3. (The loop never deploys UAT — you deploy the staging branch to your UAT box yourself.) | *(n/a — a **red** validation instead loops back to **implement** automatically; nothing publishes.)* | *(n/a)* |
 | **Gate 3** (relabeled **✓ Works / Still-broken / Abandon**) | "✓ Works" → close the GitHub issue; the run is done. | "Still-broken" → resume the *same* conversation with your failure note. The agents judge the **depth** of the fix: a localized code bug re-implements → Gate 2; a wrong *approach* re-designs, **rewrites the spec**, re-reviews → Gate 1. | "Abandon" → drop it **without** closing the issue as resolved. |
 
 A "Change" at either operator gate carries your free-text note forward as authoritative guidance. At
@@ -196,8 +196,8 @@ single-responsibility: a curated prompt plus a structured output contract. The c
 | **review-packet** | Assemble the pre-digested Gate-2 review packet (summary, risk, test summary, recommendation). |
 
 The roster also includes a **code-audit** agent (read code for logic bugs, edge cases,
-security smells, dead code), used by the proactive QA / bug-discovery sweep that *feeds*
-the intake lane rather than running inline in a single item's pipeline.
+security smells, dead code). It is available in the registry but is not invoked by the
+canonical loop.
 
 ---
 
@@ -206,10 +206,12 @@ the intake lane rather than running inline in a single item's pipeline.
 A prose walk of one item from filing to close. (The diagram is in [`sdlc.md`](sdlc.md);
 read it alongside this.)
 
-1. **Intake.** Work enters from four lanes — two reactive (GitHub **issues** and **PRs**,
-   pulled by one connector; there is no in-app tracker) and two proactive (a
-   feature-proposer cadence, and a QA / bug-discovery sweep whose detectors emit
-   bug/spec-gap items). All lanes feed **triage**.
+1. **Intake.** Work enters from GitHub **issues** (one connector; there is no in-app
+   tracker — and PRs are deliberately excluded today). Agents mid-run file incidental
+   findings as ordinary issues, so they arrive through the same lane. Three further lanes
+   are designed but NOT built yet (PR canonicalization, a feature-proposer cadence, a
+   QA/bug-discovery sweep — see the dashed 🚧 nodes in `sdlc.md`). Everything feeds
+   **triage**.
 
 2. **Funnel — cheap gates first.** Triage rejects junk and classifies bug vs. feature.
    Features pass through **vision-fit** (scope against the charter + Capability); bugs skip
@@ -236,9 +238,10 @@ read it alongside this.)
    (`decided_by=auto`); a **red** one loops back to implement. There is no operator decision here — the
    diff, the validation, and the dep-check are recorded for you to see, not to approve.
 
-7. **Merge & deploy to UAT.** On that green auto-approval, the engine auto-merges the feature → the
-   staging branch and re-syncs files to the DB. The staging branch deploys to the **UAT machine**
-   (via the configured deploy command).
+7. **Merge & push.** On that green auto-approval, the engine auto-merges the feature → the
+   staging branch, runs a mandatory **pre-verify** live acceptance of the merged staging branch on
+   the **test host**, then pushes `origin/<staging>` — the one point in the loop that pushes to
+   GitHub — and opens Gate 3. You deploy the staging branch to your **UAT machine** yourself.
 
 8. **Gate 3 — verify live.** You (and your PM) test it on UAT. **✓ Works** closes the
    GitHub issue (done). **Still-broken** resumes the same conversation (localized fix →
@@ -273,19 +276,20 @@ A run's `phase` field is the state machine the next pass routes on:
 
 ```
 new  →  gate1  →  build  →  gate2  →  verify  →  done
-                                                   (terminal)
-              ↘ rejected            ↘ parked
-                (terminal)            (terminal)
+  ↘ parked    ↘ rejected                           (terminal)
+  ↘ rejected    (terminal)
 ```
 
 - **`new`** — created; running the funnel + spec phase.
 - **`gate1`** — parked at Gate 1, awaiting your intent decision.
 - **`build`** — approved at Gate 1; implementing + validating.
 - **`gate2`** — the **automated validate gate**: on green the loop auto-approves it itself (`decided_by=auto`) and advances to staging + Gate 3; on red it loops back to build. Not an operator wait.
-- **`verify`** — merged to staging and deployed to UAT; awaiting your live verification (Gate 3).
+- **`verify`** — merged to staging and pushed; awaiting your live verification on your UAT box (Gate 3).
 - **`done`** — verified working; the GitHub issue is closed. Terminal.
-- **`rejected`** — rejected at a gate. Terminal.
-- **`parked`** — set aside by prioritize (the long tail). Terminal until re-surfaced.
+- **`rejected`** — rejected by triage / vision-fit in the funnel, or by you at Gate 1. Terminal.
+- **`parked`** — set aside by prioritize (the long tail) during the `new` phase. Not inert: when the
+  loop is otherwise idle it **auto-promotes** the highest-scored parked items into a spec phase +
+  Gate 1, capped at 3 promoted items waiting at the gate — so the park drains itself over time.
 
 The phase is what lets the loop be non-blocking: an operator gate **parks** the item (phases `gate1`
 / `verify` with no decision are correctly waiting on *you*, never "stranded"; `gate2` is loop-owned and

@@ -174,7 +174,6 @@ Then create a **GitHub Personal Access Token** so Evolve can read issues and pus
 3. **Permissions → Repository permissions:**
    - **Issues → Read and write** (read issues + post the before/after evidence comments).
    - **Contents → Read and write** (push feature branches + merge to your staging branch).
-   - **Pull requests → Read and write** *(optional — only if you want Evolve to open PRs)*.
 4. **Generate token** and copy the `github_pat_…` value — that is your **`GITHUB_TOKEN`**. GitHub shows
    it only once.
 
@@ -247,13 +246,13 @@ get you started.
 The adapter teaches Evolve how to **deploy and validate your specific project** on the test/uat
 hosts — the one piece of project-specific automation. Create `adapters/<your-project>/` and
 implement the operations the engine expects (`deploy`, `health`, `acceptance`, optional `seed` /
-`scaffold`). A real, scrubbed reference lives in `adapters/example/`. See
+`scaffold`). A neutral reference skeleton lives in `adapters/example/`. See
 [`06-target-adapters.md`](./06-target-adapters.md) for the interface.
 
-> **Honest status:** the seam that binds your adapter to the engine by name is still being
-> finalized. Until it lands, the simple-case knobs `EVOLVE_DEPLOY_CMD` and `EVOLVE_HEALTH_PATH`
-> (step 3) cover deploy + health for most stacks. Model your adapter on `adapters/example/` and read
-> connection details from env vars, never hardcode them.
+> Bind your adapter by setting `EVOLVE_ADAPTER=<your-adapter-dir>` in `.env`. The engine invokes it
+> through one entrypoint — `python3 scripts/evolve_adapter.py <op> key=value ...` — which resolves
+> `$EVOLVE_ADAPTER` to `adapters/<name>/adapter.yaml`. Model your adapter on `adapters/example/` and
+> read connection details from env vars, never hardcode them.
 
 ### 7. On evolve-admin: install deps and start the dashboard
 

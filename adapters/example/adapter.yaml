@@ -15,7 +15,7 @@
 #   registry so ONE deploy op can handle any repo type:
 #     {repo_type}   platform | app | model        {repo_path}     the repo's own checkout path
 #     {staging_branch} {world_branch}              {host_repo}     (apps) the platform it deploys into
-#     {clone_path}  e.g. apps/anime               {clone_target}  abs path: <host_path>/<clone_path>
+#     {clone_path}  e.g. apps/myunit               {clone_target}  abs path: <host_path>/<clone_path>
 #   A platform repo deploys in place (below). An app/model repo builds in its own repo, then this op
 #   clones the built branch INTO its host platform at {clone_target} and restarts — e.g.:
 #     deploy: "ssh {host} 'set -e; if [ \"{repo_type}\" = platform ]; then cd {host_path:-~/myproject} && git fetch -q && git reset --hard -q && git clean -fdq && git checkout -qf {ref} && ./deploy.sh; else rm -rf {clone_target} && git clone -q -b {ref} <app-remote> {clone_target} && cd {host_path} && ./deploy.sh; fi'"
@@ -43,7 +43,7 @@ acceptance: "EVOLVE_TARGET_HOST={host} python3 adapters/example/run_acceptance.p
 # prepare host=<host>         # (recommended for multi-repo) stand the test host up FROM SCRATCH so the
 #   AGENTS never improvise test setup: clone the platform + every registered app (at its branch) from
 #   git, build, seed mock data, ensure the test login user exists. The agents run this before
-#   reproduce/validate. Best as a script that reads the registry — see adapters/skipper/prepare_test_host.py.
+#   reproduce/validate. Best as a script that reads the registry (write your own adapters/<name>/prepare_test_host.py).
 #   The test host needs READ-ONLY git access to all your repos for this (a fine-grained read PAT).
 # prepare: "python3 adapters/myproject/prepare_test_host.py {host}"
 

@@ -16,6 +16,7 @@ AUTH model (the core safety invariant):
   * Local dev: if BOTH tokens are unset, mutations are allowed — but a SERVICE token,
     when one IS set, is STILL rejected at the decision endpoint (never let service decide).
 """
+import hmac
 import os
 from pathlib import Path
 
@@ -68,9 +69,9 @@ def _principal(authorization: str | None) -> str | None:
     tok = authorization.removeprefix("Bearer ").strip() if authorization.startswith("Bearer ") else authorization.strip()
     if not tok:
         return None
-    if DECIDE_TOKEN and tok == DECIDE_TOKEN:
+    if DECIDE_TOKEN and hmac.compare_digest(tok, DECIDE_TOKEN):
         return "decide"
-    if SERVICE_TOKEN and tok == SERVICE_TOKEN:
+    if SERVICE_TOKEN and hmac.compare_digest(tok, SERVICE_TOKEN):
         return "service"
     return "unknown"
 
@@ -174,21 +175,33 @@ async def get_runs(archived: int = 0, repo: str | None = None):
 _intake_cache: dict = {"at": 0.0, "data": None}
 
 
+def _collect_intake() -> list[dict]:
+    import sys as _sys
+    if str(_ROOT) not in _sys.path:
+        _sys.path.insert(0, str(_ROOT))
+    from engine import intake as _intake
+    pending = []
+    for i in _intake.all_admissible_issues():
+        repo, num = i.get("repo"), i.get("number")
+        if not repo or num is None:
+            continue
+        pending.append({"repo": repo, "number": num, "title": i.get("title", ""),
+                        "source": f"github:{repo}#{num}"})
+    return pending
+
+
 @app.get(PREFIX + "/intake")
 async def get_intake():
+    import asyncio
     import time as _t
     now = _t.time()
     if _intake_cache["data"] is not None and (now - _intake_cache["at"]) < 60:
         return {"pending": _intake_cache["data"]}
     try:
-        from engine import intake as _intake
-        pending = []
-        for i in _intake.all_admissible_issues():
-            repo, num = i.get("repo"), i.get("number")
-            if not repo or num is None:
-                continue
-            pending.append({"repo": repo, "number": num, "title": i.get("title", ""),
-                            "source": f"github:{repo}#{num}"})
+        # OFF the event loop: a manual-intake repo's allowlist check HTTP-calls THIS
+        # server (admitted_numbers -> EVOLVE_SERVER_URL); running it inline blocks the
+        # single loop, the inner request can't be served, and intake times out empty.
+        pending = await asyncio.to_thread(_collect_intake)
         _intake_cache["at"], _intake_cache["data"] = now, pending
         return {"pending": pending}
     except Exception:
@@ -216,8 +229,11 @@ async def reverify_run(instance_id: str, authorization: str | None = Header(defa
     _require_decide(authorization)
     if not store.get_run(instance_id):
         raise HTTPException(status_code=404, detail=f"no run {instance_id}")
+    if not store.get_gate(instance_id):
+        # never fabricate a blank, packet-less gate card for a run that has no gate row
+        raise HTTPException(status_code=404, detail=f"no gate to re-open for {instance_id}")
     # Re-open the gate (waiting) without clobbering its packet.
-    store.upsert_gate(instance_id, gate="gate3")
+    store.upsert_gate(instance_id, gate="gate3", reset=True)
     store.upsert_run(instance_id, status="waiting", phase="verify")
     return {"ok": True, "instance_id": instance_id, "reverify": True}
 
@@ -370,7 +386,16 @@ async def root():
 def main() -> None:
     import uvicorn
 
-    uvicorn.run("dashboard.server:app", host="0.0.0.0", port=PORT, reload=False)
+    # Default to loopback. Binding a non-loopback interface (EVOLVE_DASHBOARD_HOST=0.0.0.0
+    # so the brain host can reach the dashboard) REQUIRES the auth tokens: token-less "dev
+    # mode" on a network interface would let anyone on the LAN decide gates and admit issues.
+    host = os.getenv("EVOLVE_DASHBOARD_HOST") or "127.0.0.1"
+    if host not in ("127.0.0.1", "localhost", "::1") and not (DECIDE_TOKEN or SERVICE_TOKEN):
+        raise SystemExit(
+            "refusing to bind {!r} with no EVOLVE_DECIDE_TOKEN/EVOLVE_SERVICE_TOKEN set — "
+            "token-less mode is for loopback only. Set the tokens in .env, or leave "
+            "EVOLVE_DASHBOARD_HOST unset for local dev.".format(host))
+    uvicorn.run("dashboard.server:app", host=host, port=PORT, reload=False)
 
 
 if __name__ == "__main__":

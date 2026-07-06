@@ -42,9 +42,13 @@ class AgentSpec:
             return self.system_prompt
         if self.prompt_file:
             path = os.path.join(os.path.dirname(__file__), "prompts", self.prompt_file)
-            if os.path.exists(path):
-                with open(path, "r", encoding="utf-8") as fh:
-                    return fh.read()
+            if not os.path.exists(path):
+                # a typo'd prompt_file must not silently degrade the agent to a
+                # one-line generic prompt — every downstream judgment would quietly
+                # lose its curated instructions.
+                raise FileNotFoundError(f"agent '{self.name}' prompt_file missing: {path}")
+            with open(path, "r", encoding="utf-8") as fh:
+                return fh.read()
         return f"You are the {self.name} agent. {self.description}"
 
 
@@ -81,6 +85,10 @@ def validate_against_schema(schema: dict, data) -> list[str]:
                 if req not in value:
                     errs.append(f"{path}: missing required '{req}'")
             props = node_schema.get("properties", {})
+            if node_schema.get("additionalProperties") is False:
+                for k in value:
+                    if k not in props:
+                        errs.append(f"{path}: unexpected property '{k}'")
             for k, v in value.items():
                 if k in props:
                     check(props[k], v, f"{path}.{k}")

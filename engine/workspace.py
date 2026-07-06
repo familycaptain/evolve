@@ -2,7 +2,7 @@
 
 Stage 1: prove the whole feature -> release promotion loop on ONE machine with git
 worktrees + a local clone standing in for box 2. The logic here is host-agnostic;
-"real box 2" later is just pointing `box2_*` at an ssh remote + a real Postgres
+"real box 2" later is just pointing `box2_*` at an ssh remote + a real database
 instead of a local clone. Nothing else changes.
 
 Topology (per §5):
@@ -36,7 +36,8 @@ def git(repo: str, *args: str, check: bool = True) -> str:
 
 
 def _slug(item_id: str) -> str:
-    return "".join(c if c.isalnum() or c in "-_." else "-" for c in item_id)
+    # no dots: "." / ".." in an item id must never influence a filesystem path
+    return "".join(c if c.isalnum() or c in "-_" else "-" for c in item_id)
 
 
 # Capabilities whose specs live at the repo-level specs/ tree (platform-wide, not owned by
@@ -111,8 +112,11 @@ class WorkspaceManager:
 
     def write_file(self, feature: Feature, relpath: str, content: str) -> str:
         """Write a file inside the feature worktree (bounded to it)."""
-        full = os.path.realpath(os.path.join(feature.path, relpath))
-        if not full.startswith(os.path.realpath(feature.path)):
+        root = os.path.realpath(feature.path)
+        full = os.path.realpath(os.path.join(root, relpath))
+        # commonpath, not startswith: /wt/foo-evil startswith /wt/foo — the classic
+        # prefix bug would let a crafted relpath escape into a sibling worktree.
+        if os.path.commonpath([full, root]) != root:
             raise GitError("path escapes the worktree")
         os.makedirs(os.path.dirname(full), exist_ok=True)
         with open(full, "w", encoding="utf-8") as fh:

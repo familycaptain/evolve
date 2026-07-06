@@ -249,8 +249,10 @@ Both require the decide-token:
 ## The API contract (brief)
 
 The SPA speaks a small REST contract under **`/api/apps/evolve`** — `runs`, `gates`,
-`gates/{id}/decision`, `runs/{id}/events`, `runs/{id}/archive`, `runs/{id}/reverify`, `repos`, and the
-issue-intake endpoints `admitted`, `admit`, `admit/revoke`. The same contract is what the engine CLIs
+`gates/{id}/decision`, `gates/{id}/resolve` (the engine marks a decided gate's terminal outcome),
+`runs/{id}/events`, `runs/{id}/archive`, `runs/{id}/reverify`, `repos`, and the
+issue-intake endpoints `intake` (the admissible, not-yet-started issue backlog), `admitted`, `admit`,
+`admit/revoke`. The same contract is what the engine CLIs
 (`evolve_explain.py`, `evolve_decide.py`, the brain's bridge) call, which is why the PM and the
 dashboard always agree on live state. GET endpoints are open; mutations need the service-or-decide
 token. The **decision** endpoint (`gates/{id}/decision`) is per-gate: it takes the operator's decide
@@ -259,6 +261,10 @@ service token on any change/reject or on Gate 1 / Gate 3. The other decide-only 
 reverify, **admit / admit/revoke**) reject the service token outright. For the full contract and the
 two-token model, see
 [Architecture & the Fleet](02-architecture.md).
+
+The server binds the address in **`EVOLVE_DASHBOARD_HOST`** (default `127.0.0.1`). Binding a
+non-loopback address **requires** the auth tokens to be configured — token-less mode refuses to
+start off loopback.
 
 ---
 

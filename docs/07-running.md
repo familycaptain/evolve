@@ -225,7 +225,7 @@ This two-token split is the core safety property (see [Architecture](02-architec
 
 While the swarm works, the dashboard narrates it live. Click any card to open its detail modal and see:
 
-- its **status, phase, current agent/node, and live spend**, and
+- its **status, phase, and current agent/node**, and
 - the **live activity tail** — each agent's steps as they happen (start/end lines, tool calls,
   emitted artifacts like the full spec, each reviewer's findings, the lead's recommendation, the
   build diff). Grouped by agent, it's the play-by-play of what the swarm is doing.

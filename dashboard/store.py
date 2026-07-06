@@ -211,13 +211,41 @@ class Store:
 
     # ----------------------------------------------------------------- gates ---
     def upsert_gate(self, instance_id: str, *, gate=None, repo=None, title=None,
-                    rec_action=None, rec_why=None, packet=None) -> None:
-        """Insert or MERGE a gate row; always (re)sets status='waiting'. packet is a
-        dict (serialised to JSON text) or None to keep the existing packet."""
+                    rec_action=None, rec_why=None, packet=None, reset=False) -> None:
+        """Insert or MERGE a gate row. packet is a dict (JSON-serialised) or None to
+        keep the existing packet.
+
+        DECISION SAFETY: a re-push of the SAME gate kind (an outbox replay, a
+        stranded-item resume re-posting its packet) must never erase a decision the
+        operator already recorded — the loop would then read 'waiting' and re-park an
+        item the operator believes they approved. So a 'decided' row is preserved
+        unless (a) the incoming gate KIND differs (the item advanced to its next
+        gate — a fresh decision is genuinely owed) or (b) reset=True (an explicit
+        re-open, e.g. the reverify endpoint)."""
         if not instance_id:
             raise ValueError("instance_id is required")
         packet_json = json.dumps(packet) if packet is not None else None
         with self._lock, self._conn:
+            row = self._conn.execute(
+                "SELECT gate, status FROM gate_queue WHERE instance_id = ?",
+                (instance_id,)).fetchone()
+            if (row and not reset and row["status"] == "decided"
+                    and (gate is None or gate == row["gate"])):
+                # same-gate re-push after a decision: merge metadata, keep the decision
+                self._conn.execute(
+                    """
+                    UPDATE gate_queue SET
+                        repo       = COALESCE(?, repo),
+                        title      = COALESCE(?, title),
+                        rec_action = COALESCE(?, rec_action),
+                        rec_why    = COALESCE(?, rec_why),
+                        packet     = COALESCE(?, packet),
+                        updated_at = ?
+                    WHERE instance_id = ?
+                    """,
+                    (repo, title, rec_action, rec_why, packet_json, _now(), instance_id),
+                )
+                return
             self._conn.execute(
                 """
                 INSERT INTO gate_queue (instance_id, repo, gate, title, rec_action,

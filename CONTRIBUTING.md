@@ -55,9 +55,11 @@ uvicorn dashboard.server:app --port 8000   # then curl http://localhost:8000/api
   `adapters/<your-project>/` are gitignored on purpose — they're yours, not the engine's. Use the
   `*.example` templates. Scan your diff for tokens, keys, hostnames, and personal data before pushing.
 - **Don't weaken the two-token security model.** The brain holds only a service token and can *propose*
-  decisions; only the operator (on evolve-admin) with the decide-token can *approve* a gate. Any change
-  near `dashboard/server.py` auth, `engine/platform_bridge.py`, or the decide endpoints must preserve
-  that the service token is rejected (403) at decision/archive/reverify.
+  decisions; only the operator (on evolve-admin) with the decide-token can decide the operator gates.
+  Any change near `dashboard/server.py` auth, `engine/platform_bridge.py`, or the decide endpoints must
+  preserve: the service token is rejected (403) at archive/reverify/admit and at every gate decision
+  EXCEPT the one deliberate carve-out — a gate-2 **approve** (the automated validate gate, recorded as
+  `decided_by=auto`). A service change/reject anywhere, or any service decision on gate 1/3, must stay 403.
 - **Honor the design principles.** Inject the right context/tools just-in-time (don't bloat prompts);
   let the LLM determine intent (don't string-match chat to trigger behavior); a target project's
   deploy/test is the adapter's job, not hardcoded in the engine.
