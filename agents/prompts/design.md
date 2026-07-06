@@ -83,5 +83,10 @@ Then, given the work-item (+ triage/vision context):
    is: SAME root cause / same fix → do it here; different fix → separate issue.) "Fixed" means
    fixed everywhere that root cause exists.
 
+When the issue is "the assistant/LLM should behave better" (over-asks, marks work done
+shallowly, nudges too often), prefer a **code-level GATE over deeper prompt copy**: guidance
+text bends under model variance, a dispatch check or completion gate cannot. Copy may ride
+along for tone, but the enforceable rule is the deliverable.
+
 Be concrete and opinionated. You decide the *approach* and the *shape*; the spec-author
 writes the precise spec(s). Lead with your `summary`. Return your result via `emit`.

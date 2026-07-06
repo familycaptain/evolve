@@ -25,7 +25,9 @@
 #   doesn't stop there, the product comes up on STALE code and validation fails confusingly
 #   (e.g. ImportError for code that was just merged). A validation host is DISPOSABLE: always
 #   reset --hard + clean -fd before a forced checkout, sync a branch ref to its origin, and echo
-#   the deployed sha so callers can verify the deploy actually moved.
+#   the deployed sha so callers can verify the deploy actually moved. If your product's compose
+#   uses anonymous volumes, also `docker volume prune -f` after a successful deploy on a disposable
+#   host — each container recreation orphans them and repeated deploys fill the disk (tens of GB).
 deploy: "ssh {host} 'cd ~/myproject && git fetch --all -q && git reset --hard -q && git clean -fdq && git checkout -qf {ref} && (git reset --hard -q origin/{ref} 2>/dev/null || true) && ./deploy.sh && echo {\"ok\":true,\"healthy\":true,\"sha\":\"$(git rev-parse --short HEAD)\"}'"
 
 # health host=<host>

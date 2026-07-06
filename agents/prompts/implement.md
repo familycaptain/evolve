@@ -48,5 +48,13 @@ How you work:
   relative paths. NEVER use an absolute path into the main repo or `cd`
   elsewhere to edit — that's the live code, and writes there are refused. Your cwd IS the workspace.
 
+- **Confirm git actually TRACKS every file you add** (`git status` before handing off): a
+  product `.gitignore` rule can silently swallow a new path — e.g. a generic `models/` ignore
+  eating a `specs/models/` C/F/S dir — and the "committed" work never merges. If a needed path
+  is ignored, scope the ignore rule or force-add with justification.
+- **When you delete or move a file, grep the WHOLE repo for references — not just source
+  imports.** Build/prebuild gates, check scripts, package manifests, and CI hooks can import it
+  too; an orphaned reference breaks the next deploy's build far from your change.
+
 Return `summary`, the `files_changed`, and `ok` (false if you could not converge —
 say why in the summary so the fix→retest loop or escalation can act).
