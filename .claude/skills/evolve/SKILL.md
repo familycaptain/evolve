@@ -163,9 +163,14 @@ Pick **ONE** item, run its segment below, then **END the pass** (do not start a 
   security concern for the operator (never auto-reproduce a blocked item; never silently reject an
   operator-authored one), `phase=gate1`, **END**. `verdict=clear` (carry any `repro_constraints`
   forward) →
-  **(0b) `evolve-reproduce`** (orchestrator drives the test host, like validate): deploy current
+  **(0b) `evolve-reproduce`** (orchestrator drives the test host, like validate): FIRST choose the
+  target's starting STATE if the project has state — `python3 scripts/evolve_adapter.py state host=$EVOLVE_TEST_HOST`
+  shows what the box currently is; first-run/setup/provisioning items → `reset mode=blank`;
+  needs-a-known-baseline → `reset mode=seeded`; a routine issue the CURRENT state reproduces
+  faithfully → use as-is (the everyday fast path — prefer it when sufficient; no `reset` op defined
+  = stateless project, skip). Then deploy current
   `$EVOLVE_STAGING_BRANCH` to the test host (`$EVOLVE_TEST_HOST`) via the adapter binding (`python3 scripts/evolve_adapter.py deploy host=$EVOLVE_TEST_HOST ref=$EVOLVE_STAGING_BRANCH`)
-  (current pre-fix state, mock data), reproduce the reported symptom on the EXACT surface the issue
+  (pre-fix state), reproduce the reported symptom on the EXACT surface the issue
   names, and **capture evidence in its native form** — a `page.screenshot` for **any surface that
   produces output a user could see on a screen** (a page, control, color, **rendered message/notification**,
   visible state — the pixels, not a text transcript; differently-sourced outputs can read identically as
@@ -231,7 +236,9 @@ Pick **ONE** item, run its segment below, then **END the pass** (do not start a 
   **IMMEDIATELY before validating, report `run ev-<n> --status validating --phase gate2`** — this moves the
   card into the **Validate** column so the operator sees it actively validating on the test host (not stuck
   in Build), even though Gate 2 is automated and needs no operator action. Then run
-  `evolve-validate` on the test host (`$EVOLVE_TEST_HOST`). **When validate is GREEN**, set `verified: true` on each spec the change
+  `evolve-validate` on the test host (`$EVOLVE_TEST_HOST`) — validate chooses the target STATE the
+  same way reproduce did (blank / seeded / current per the item class; `evolve_adapter.py state`
+  shows the box's last preparation). **When validate is GREEN**, set `verified: true` on each spec the change
   proved with a passing bound test (edit the spec YAML in the worktree so it merges with the
   code+test) — that graduates it from unverified baseline to an authoritative, code-governing contract.
   **AFTER-EVIDENCE IS MANDATORY — do NOT push Gate 2 without it (symmetric with reproduce's

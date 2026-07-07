@@ -47,6 +47,15 @@ acceptance: "EVOLVE_TARGET_HOST={host} python3 adapters/example/run_acceptance.p
 #   The test host needs READ-ONLY git access to all your repos for this (a fine-grained read PAT).
 # prepare: "python3 adapters/myproject/prepare_test_host.py {host}"
 
+# reset host=<host> mode=<blank|seeded>
+#   (optional) Return the target to a DEFINED starting state. blank = the product's pristine /
+#   first-run state (makes any setup wizard testable); seeded = a deterministic lived-in baseline
+#   (bootstrap + fixtures — cache a dump of it for speed). Agents also have a third choice that
+#   needs NO adapter support: using the CURRENT state as-is (the everyday fast path). The engine
+#   records each successful reset + activity since (see `evolve_adapter.py state`). A project with
+#   no persistent state (e.g. a CLI utility) simply omits this op.
+# reset: "ssh {host} 'cd ~/myproject && ./reset_state.sh {mode}'"
+
 # seed host=<host>            # (optional) load fixtures / mock data so acceptance has a known start.
 # seed: "ssh {host} 'cd ~/myproject && ./seed.sh'"
 

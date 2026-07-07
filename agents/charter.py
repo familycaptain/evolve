@@ -27,6 +27,7 @@ _KEYS = {
     "principles": "engineering principles",   # non-functional constraints (preconfigure, minimize calls...)
     "contracts": "external contract",         # consumers outside this repo (companion clients / shared APIs)
     "stack": "stack",                         # languages/frameworks + repo layout the agents must respect
+    "test-state": "test-target state",        # optional: what blank/seeded mean for THIS product + which item classes need which
 }
 
 

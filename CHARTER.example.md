@@ -79,3 +79,17 @@ repos those are, so the interop/architecture agents know what they must not brea
 <Where code, specs, and tests live (spec roots, app/module directories), the dependency-direction
 rules, and the languages/frameworks in use — so agents place code correctly and resolve your specs.>
 -->
+
+
+## Test-target state (optional)
+
+How the validation target's state is prepared per item class (consumed by the reproduce/validate
+agents; omit this section entirely if your project has no persistent state):
+
+- **blank** (adapter `reset mode=blank`): <what pristine/first-run means for your product — e.g.
+  "empty database; the app boots into its setup wizard">. Use for: first-run / setup / provisioning
+  issues.
+- **seeded** (adapter `reset mode=seeded`): <your deterministic lived-in baseline — e.g. "blank +
+  one admin user + demo fixtures">. Use for: state-sensitive behavior needing a known baseline.
+- **current** (no reset): the box as the last runs left it. Use for: routine changes the current
+  state can validate faithfully — the everyday fast path; prefer it when sufficient.

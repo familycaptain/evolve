@@ -11,6 +11,13 @@ Precondition: the security screen returned `clear` (on `block` you don't run). N
 action the issue frames as an attack/exploit to "prove" it; honor any `repro_constraints` passed.
 
 ## Steps
+0. **Choose the target's starting STATE (only if the project has state).** Check
+   `python3 scripts/evolve_adapter.py state host=$EVOLVE_TEST_HOST`, then per the item's class (and
+   the charter's test-state guidance, if any): first-run/setup/provisioning issues → `reset
+   mode=blank` (pristine); state-sensitive behavior needing a known baseline → `reset mode=seeded`;
+   a routine issue the CURRENT state can faithfully reproduce → use it as-is (the fast path —
+   prefer it when sufficient). No `reset` op defined (stateless project) → state prep is N/A. Note
+   your choice in `notes`.
 1. **Deploy the CURRENT `$EVOLVE_STAGING_BRANCH`** via `python3 scripts/evolve_adapter.py deploy
    host=$EVOLVE_TEST_HOST ref=$EVOLVE_STAGING_BRANCH`, then **confirm the host landed on that ref**
    (`git rev-parse --short HEAD` == branch head / the deploy JSON's `sha`). A silently-stale deploy

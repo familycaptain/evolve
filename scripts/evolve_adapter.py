@@ -21,6 +21,15 @@ Operations the engine uses (an adapter implements only the ones it needs):
   acceptance  host=<host> spec=<id|file>     drive the product as a user; print {"passed":..,"evidence":[..]}.
   seed        host=<host>                     (optional) load fixtures / mock data.
   scaffold    unit=<name>                     (optional) scaffold a new unit of work.
+  reset       host=<host> mode=<blank|seeded>  (optional) return the target to a DEFINED starting
+              state before testing. mode=blank -> the product's pristine/first-run state (setup
+              wizard testable); mode=seeded -> a deterministic lived-in baseline (bootstrap +
+              fixtures). What those mean is the ADAPTER's business — a stateless project (e.g. a
+              CLI utility with no persistent state) simply omits the op, and agents treat state
+              preparation as N/A. On success the engine records the prepared state (see `state`).
+  state       host=<host>                     engine-side bookkeeping (no adapter command needed):
+              prints the target's last recorded preparation {mode, at, by, activity_since} so an
+              agent can decide whether the CURRENT state is suitable or a reset is warranted.
 
 An op the active adapter doesn't define is a clean error, not a crash — so a project that only
 needs `deploy`+`acceptance` simply omits the rest.
@@ -66,7 +75,7 @@ def _manifest() -> tuple[str, dict]:
 
 def main() -> None:
     if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
-        sys.exit("usage: evolve_adapter.py <deploy|health|acceptance|seed|scaffold> [key=value ...]")
+        sys.exit("usage: evolve_adapter.py <deploy|health|acceptance|seed|scaffold|reset|state> [key=value ...]")
     op = sys.argv[1]
     args = dict(a.split("=", 1) for a in sys.argv[2:] if "=" in a)
     name, manifest = _manifest()
@@ -104,6 +113,33 @@ def main() -> None:
                "host_repo", "host_path", "clone_path", "clone_target"):
         args.setdefault(_k, "")
 
+    # ---- engine-side target-state bookkeeping (generic: just records op invocations) ----
+    import json as _json
+    import time as _time
+    _state_dir = os.path.expanduser(os.getenv("EVOLVE_STATE_DIR") or "~/.evolve/runs")
+    _host = args.get("host") or "default"
+    _marker = os.path.join(_state_dir, f"target-state-{_host.replace('/', '_')}.json")
+
+    def _read_marker() -> dict:
+        try:
+            with open(_marker, encoding="utf-8") as fh:
+                return _json.load(fh)
+        except Exception:
+            return {}
+
+    def _write_marker(d: dict) -> None:
+        os.makedirs(_state_dir, exist_ok=True)
+        with open(_marker, "w", encoding="utf-8") as fh:
+            _json.dump(d, fh, indent=1)
+
+    if op == "state":
+        m = _read_marker()
+        if not m:
+            m = {"mode": "unknown", "note": "no reset recorded — state is whatever prior runs left "
+                 "(or the project is stateless and never resets)"}
+        print(_json.dumps(m))
+        sys.exit(0)
+
     cmd_tpl = manifest.get(op)
     if not cmd_tpl:
         defined = ", ".join(k for k in manifest if isinstance(manifest[k], str)) or "(none)"
@@ -121,7 +157,23 @@ def main() -> None:
         sys.exit(f"op '{op}' needs arg(s) {missing} — call it as `{op} {' '.join(k+'=...' for k in missing)}`.")
 
     # Run on the brain; the adapter command owns any ssh into the target host. Pass through I/O + code.
-    sys.exit(subprocess.run(cmd, shell=True, cwd=ROOT).returncode)
+    rc = subprocess.run(cmd, shell=True, cwd=ROOT).returncode
+    try:
+        if op == "reset" and rc == 0:
+            _write_marker({"mode": args.get("mode") or "unspecified",
+                           "at": _time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+                           "by": args.get("by") or "", "activity_since": []})
+        elif op in ("acceptance", "seed", "deploy") and rc == 0:
+            m = _read_marker()
+            if m:
+                acts = m.get("activity_since") or []
+                acts.append({"op": op, "at": _time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+                             "detail": args.get("spec") or args.get("ref") or ""})
+                m["activity_since"] = acts[-40:]
+                _write_marker(m)
+    except Exception:
+        pass  # bookkeeping must never break the op itself
+    sys.exit(rc)
 
 
 if __name__ == "__main__":

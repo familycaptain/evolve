@@ -217,7 +217,7 @@ ROSTER: dict[str, AgentSpec] = {
     "reproduce": AgentSpec(
         "reproduce", "Reproduce the reported issue on the test host through the project's real interface + capture evidence to the issue, before any code is read.",
         REPRODUCE_OUT, prompt_file="reproduce.md", tier="deep", requires_tools=True,
-        charter_keys=["project-kind", "surfaces", "stack"]),   # learns whether there's a UI to drive vs CLI/API/library
+        charter_keys=["project-kind", "surfaces", "stack", "test-state"]),   # learns the interface to drive + how to prepare target state
     "vision-fit": AgentSpec(
         "vision-fit", "Judge a feature against the charter + Capability scope.",
         VISION_OUT, prompt_file="vision-fit.md", tier="deep",
@@ -289,7 +289,7 @@ ROSTER: dict[str, AgentSpec] = {
     "validate": AgentSpec(
         "validate", "Run a spec's bound tests on the test host + exercise its real interface, and judge the result.",
         VALIDATE_OUT, prompt_file="validate.md", tier="deep", requires_tools=True,
-        charter_keys=["project-kind", "surfaces", "stack"],   # learns the real interface to exercise + the native form of evidence
+        charter_keys=["project-kind", "surfaces", "stack", "test-state"],   # interface to exercise + evidence form + state preparation
         skills=["run-evolve-tests"]),
 }
 

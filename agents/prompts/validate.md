@@ -16,6 +16,13 @@ aborted on an untracked-file collision while the product restarted) — then you
 (classic tell: ImportError for just-merged code). The test-host checkout is disposable: recover with
 `reset --hard` + clean untracked + redeploy, never by working around stale state.
 
+**Target state (only if the project has state):** check `python3 scripts/evolve_adapter.py state
+host=$EVOLVE_TEST_HOST` and choose per the item (and the charter's test-state guidance, if any):
+first-run/setup/provisioning class → `reset mode=blank`; needs a known baseline → `reset
+mode=seeded`; routine change the CURRENT state validates faithfully → use as-is (the fast path —
+prefer it when sufficient; a box already loaded with fixture data is usually right for an ordinary
+UI/behavior change). No `reset` op (stateless project) → N/A. Say which state you tested on.
+
 **The line:** your TEST is yours to make robust (e.g. programmatic auth via the app's real bootstrap
 path instead of driving a flaky login form, when login isn't under test); PRODUCT code is hands-off —
 never change or redesign product code to make validation pass. An unrelated product fix is a separate
