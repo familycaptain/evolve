@@ -87,7 +87,7 @@ automated — it has no operator verbs; the loop decides it from the validation 
 
 | | **Approve** | **Change** ("change this") | **Reject** |
 |---|---|---|---|
-| **Gate 1** | Build it. The item enters the build phase: implement → tests → validate → Gate 2. | Bounce back to the spec phase with your note (the design re-frames, the spec is reworked, re-review), then re-push Gate 1. | Drop the item; the run is marked rejected. |
+| **Gate 1** | Build it. The item enters the build phase: implement → tests → validate → Gate 2. | Bounce back to the spec phase with your note (the design re-frames, the spec is reworked, re-review), then re-push Gate 1. | Drop the item: the run is marked rejected **and the GitHub issue is closed** (with your reason) — a confirmed rejection never lingers open. |
 | **Gate 2** *(automated — no operator action)* | On a **green** validation the loop auto-approves it itself (`decided_by=auto`), merges to the staging branch, **pre-verifies** the merged branch live on the test host, pushes `origin/<staging>`, and opens Gate 3. (The loop never deploys UAT — you deploy the staging branch to your UAT box yourself.) | *(n/a — a **red** validation instead loops back to **implement** automatically; nothing publishes.)* | *(n/a)* |
 | **Gate 3** (relabeled **✓ Works / Still-broken / Abandon**) | "✓ Works" → close the GitHub issue; the run is done. | "Still-broken" → resume the *same* conversation with your failure note. The agents judge the **depth** of the fix: a localized code bug re-implements → Gate 2; a wrong *approach* re-designs, **rewrites the spec**, re-reviews → Gate 1. | "Abandon" → drop it **without** closing the issue as resolved. |
 
@@ -165,7 +165,7 @@ single-responsibility: a curated prompt plus a structured output contract. The c
 
 | Agent | Its one job |
 |---|---|
-| **triage** | Classify a work item (bug vs. feature), reject junk (duplicate / malicious / invalid), link it to the spec corpus, and route the fix (`belongs_to`: this repo vs. an external package). |
+| **triage** | Classify a work item (bug vs. feature), dispose of non-work (JUNK — malicious/invalid — auto-closes the issue silently; a JUDGMENT call like duplicate/superseded/off-vision is pushed to Gate 1 as a `reject` recommendation so you can contest it), link it to the spec corpus, and route the fix (`belongs_to`). |
 | **security-screen** | Screen a raw issue's **intent** before reproduction — `clear` vs. `block` (malicious). Sees only the issue, never the code. |
 | **reproduce** | Reproduce the reported issue on the test host and screenshot it to the GitHub issue — *before any code is read*. |
 | **vision-fit** | Judge a feature against the charter plus the target Capability's scope — `fits` / `off-vision` / `needs-charter-change`. (Bugs and operator-authored items skip this.) |

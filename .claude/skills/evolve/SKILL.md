@@ -140,8 +140,18 @@ Pick **ONE** item, run its segment below, then **END the pass** (do not start a 
   do NOT reject: proceed, and carry triage's `summary`/`rationale` forward as a prominent
   operator-facing note so it surfaces at **Gate 1** for the operator to decide (redirect, accept an
   in-scope reframe, or reject it themselves). Triage rejection applies ONLY to PUBLIC (non-operator)
-  items: `duplicate`/`malicious`/`invalid` → report `rejected`, `phase=rejected`, add to `seen.json`,
-  **END**. **Where does the fix BELONG?** Triage emits `belongs_to`. If the fix belongs to a repo
+  items, and **splits by whether the operator would want to CONTEST the call** (a rejection is never
+  left silently lingering as an open issue):
+  - **Junk** — `malicious`/`invalid` (spam, gibberish, an attack, not an actionable request):
+    **auto-CLOSE the GitHub issue** (`python3 scripts/evolve_runs.py close ev-<n> "<one-line reason>"`), then `resolve ev-<n> rejected`, `phase=rejected`, add to `seen.json`,
+    **END**. No gate — the operator never reviews junk. (Reopenable on GitHub if ever misjudged.)
+  - **Judgment** — `duplicate` (and any superseded / no-longer-applicable / off-scope call): the
+    loop's "this isn't valid" is a JUDGMENT the operator may disagree with, so do NOT silently close.
+    **Push a Gate-1 packet with `recommendation.action = reject`** (why = triage's rationale + the
+    duplicate/superseded target), `phase=gate1`, **END**. The operator contests or confirms at Gate 1:
+    `reject` → the issue is closed; `change` → rework with new requirements; `approve` → build it anyway.
+
+  **Where does the fix BELONG?** Triage emits `belongs_to`. If the fix belongs to a repo
   **this instance manages** (the item's own repo, or another entry in `evolve.repos.yaml` — check with
   `repos.repo_config(<name>)`), **Evolve builds it there** — carry that repo forward as the item's `repo`
   and build in its `repo_path` (multi-repo is supported). Only if `belongs_to` is a repo **NOT in the
@@ -149,7 +159,9 @@ Pick **ONE** item, run its segment below, then **END the pass** (do not start a 
   `belongs_to: <repo>` + triage's in-scope angle, ask the operator to decide (add that repo to the
   registry, pursue an in-scope reframe in a managed repo, or drop it); `phase=gate1`, **END**.
   Proceeding: bug **or** operator-authored → skip vision; external feature →
-  `evolve-vision-fit` (`off-vision` → rejected, **END**, *public items only*). Then
+  `evolve-vision-fit` (`off-vision` → **push a Gate-1 `recommendation.action = reject` packet** so the
+  operator can contest declining the feature — `phase=gate1`, **END**, *public items only*; never a
+  silent reject). Then
   `evolve-prioritize` → `park` → `phase=parked`, **END**; `surface` → run the **SPEC PHASE**. **Exception —
   an item flagged `promoted_from_park`** (an idle-promoted parked item, step 1d): its funnel already ran
   (triage/vision/prioritize artifacts exist — that's how it got parked), so **SKIP the funnel and go
@@ -193,6 +205,13 @@ Pick **ONE** item, run its segment below, then **END the pass** (do not start a 
   Save every artifact. Then push **Gate 1** (see *At a gate*), `phase=gate1`, **END**.
 
 - **`phase=gate1`, decision=`approve`:** RE-LOAD spec + grounding + design from `$EVOLVE_STATE_DIR/<id>/`.
+  **Exception — a reject-recommendation the operator OVERRODE:** if this item reached Gate 1 as a
+  triage/vision `recommendation.action = reject` (junk-vs-judgment split above / `off-vision`) and the
+  operator answered `approve` ("no, it IS valid — build it"), there is **no spec/grounding/design to
+  re-load** — it was never funneled. Treat approve here like a fresh proceed: run the full **SPEC PHASE**
+  (grounding → design → spec → code-scout → spec-audit → reviewers → lead), re-push **Gate 1** with the
+  Lead's real recommendation, `phase=gate1`, **END**. (Same for `change` on such an item — spec it with
+  the operator's note. Only `reject` on it closes the issue.) Detect it by the absence of `spec*.json`.
   > **Multi-repo build note (governs this whole build segment).** For the **primary platform repo** the
   > steps below work as written — cwd, `$EVOLVE_STAGING_BRANCH`. For an item in **any OTHER managed repo**,
   > substitute that repo's context from the registry: cut the worktree from its `repo_path` on its own
@@ -258,7 +277,8 @@ Pick **ONE** item, run its segment below, then **END the pass** (do not start a 
   **RED**: do NOT push or auto-approve — loop back to re-implement (fix → re-validate); nothing is published.
   - decision=`change` → re-run the spec phase with the operator's note, re-push Gate 1, **END**.
   - decision=`reject` → `resolve ev-<n> rejected` (clears gate + sets run rejected), teardown the
-    worktree, `phase=rejected`, add to `seen.json`, **END**.
+    worktree, **close the GitHub issue** (`python3 scripts/evolve_runs.py close ev-<n> "<the operator's reject note / reason>"` — a confirmed rejection never leaves the issue open to
+    linger), `phase=rejected`, add to `seen.json`, **END**.
 
 - **`phase=gate2`, decision=`approve` (normally the loop's OWN auto-approval, `decided_by=auto` — Gate 2 is automated):** Merge feature → `$EVOLVE_STAGING_BRANCH` (mechanics). **On a merge conflict:**
   resolve **trivial / non-code** conflicts yourself and continue — typically a **doc or list** both
@@ -332,7 +352,9 @@ Pick **ONE** item, run its segment below, then **END the pass** (do not start a 
     choice** → it's a new approach → spec phase + **Gate 1**. Only a code-level bug *under an unchanged
     spec* skips ahead to re-implement → Gate 2. **Never leave the spec describing a way you no longer
     build** — a stale spec is itself a defect (the architecture reviewer will flag it).
-  - decision=`reject` (abandon): `resolve ev-<n> rejected`, teardown, `phase=rejected`, seen, **END**.
+  - decision=`reject` (abandon): `resolve ev-<n> rejected`, teardown, **close the GitHub issue**
+    (`python3 scripts/evolve_runs.py close ev-<n> "<reason: abandoned at verify>"`),
+    `phase=rejected`, seen, **END**.
     (Leave the GitHub issue open or comment — do not close an abandoned item as resolved.)
 
 ## At a gate (push it, then END — NEVER poll)
