@@ -159,11 +159,20 @@ def digest(iid, runs):
         if "approve" in o:
             _line("approve", o.get("approve"))
         for c in _aslist(o.get("concerns")):
-            _line(f"concern[{c.get('severity')}]", c.get("detail"))
+            if isinstance(c, dict):
+                _line(f"concern[{c.get('severity')}]", c.get("detail"))
+            else:
+                _line("concern", str(c))
         for c in _aslist(o.get("findings")):
-            _line(f"finding[{c.get('severity')}]", f"{c.get('category', '')}: {c.get('detail', '')}")
+            if isinstance(c, dict):
+                _line(f"finding[{c.get('severity')}]", f"{c.get('category', '')}: {c.get('detail', '')}")
+            else:
+                _line("finding", str(c))
         for c in _aslist(o.get("conflicts")):
-            _line("conflict", f"{c.get('with_spec', '')}: {c.get('detail', '')}")
+            if isinstance(c, dict):
+                _line("conflict", f"{c.get('with_spec', '')}: {c.get('detail', '')}")
+            else:
+                _line("conflict", str(c))
 
     val = pkt.get("validation")
     if val:
