@@ -31,7 +31,13 @@ Rules:
   library call, golden/property tests — and an `e2e` test for a web UI might drive the
   browser (e.g. Playwright). Prefer a **deterministic** test (`type: unit`/`integration`
   with a `path` and a concrete oracle); add a `type: agentic` test with a `rubric` only
-  when judgment is genuinely required. Every test must have a concrete oracle. A `unit`
+  when judgment is genuinely required. Every test must have a concrete oracle.
+  **`tests: []` is never valid — including for surfaces the stack has no conventional
+  runner for** (a UI-only behavior in a repo with no JS test runner, a config/build-time
+  rule): bind a BUILD-TIME assertion/check script per the charter's stack conventions
+  (a source/config gate that runs on every build is a genuine bound test) rather than
+  leaving the spec untestable or marking it verified without proof — the loader hard-errors
+  `verified` with no test, by design. A `unit`
   `path` lives in the app's own tree — under the configured app dir (`$EVOLVE_APP_GLOB`),
   co-located so the app is distributable — not the top-level `tests/`.
 - Avoid the naive-spec traps the spec-audit agent hunts (1:1 over a many-to-many,
