@@ -68,6 +68,20 @@ uvicorn dashboard.server:app --port 8000   # then curl http://localhost:8000/api
 - **Be honest in docs.** If something is designed-but-not-built (e.g. the multi-repo change-poller),
   say so. Don't describe aspirations as shipped features.
 
+## Running the engine tests
+
+The engine ships a fast, offline unit suite under `engine/tests/`. It exercises only
+generic engine contracts — C/F/S schema validation, the store's serialize round-trip and
+projection integrity, worktree containment — with synthetic fixtures. It makes **no**
+network calls and never touches GitHub, a database, or a remote box, so it runs anywhere
+Python + PyYAML are installed:
+
+    python -m unittest discover -s engine/tests -t .
+
+Keep these tests domain-agnostic: they must not assume anything about the project a given
+adapter happens to evolve (no web/DB/app-specific shapes). Project-specific checks belong
+in that adapter's own tests, not the engine suite.
+
 ## Pull requests
 
 1. Branch off `main`.
