@@ -121,5 +121,72 @@ class WorktreeLifecycle(unittest.TestCase):
             self.assertFalse(os.path.exists(feat.path))
 
 
+@unittest.skipUnless(_HAS_GIT, "git not available")
+class FeatureLookup(unittest.TestCase):
+    """A later pass needs the Feature as a HANDLE — looking one up must not try to
+    re-cut the branch (cutting an existing branch is an error)."""
+
+    def _wm(self, tmp):
+        repo = os.path.join(tmp, "repo")
+        _init_repo(repo)
+        return WorkspaceManager(repo, worktrees_dir=os.path.join(tmp, "wt"),
+                                release="release", main="main")
+
+    def test_locate_returns_the_same_handle_start_created(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            wm = self._wm(tmp)
+            made = wm.start_feature("demo.thing.widget")
+            found = wm.locate_feature("demo.thing.widget")
+            self.assertEqual((found.branch, found.path), (made.branch, made.path))
+
+    def test_locate_refuses_to_invent_a_workspace_that_was_never_cut(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            wm = self._wm(tmp)
+            self.assertFalse(wm.feature_exists("demo.thing.ghost"))
+            with self.assertRaises(GitError):
+                wm.locate_feature("demo.thing.ghost")
+
+    def test_recutting_still_fails_unless_reuse_is_asked_for(self):
+        # default stays strict: a new build must never silently inherit an earlier
+        # attempt's worktree. reuse=True is the explicit resume path.
+        with tempfile.TemporaryDirectory() as tmp:
+            wm = self._wm(tmp)
+            first = wm.start_feature("demo.thing.widget")
+            with self.assertRaises(GitError):
+                wm.start_feature("demo.thing.widget")
+            again = wm.start_feature("demo.thing.widget", reuse=True)
+            self.assertEqual(again.path, first.path)
+
+
+@unittest.skipUnless(_HAS_GIT, "git not available")
+class CommitIdentity(unittest.TestCase):
+    def test_a_repo_with_no_identity_can_still_be_committed_in_directly(self):
+        # a fresh clone the engine has just taken over has no user.name/email, and a
+        # plain `git commit` (an agent shelling out) would hard-fail on it
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = os.path.join(tmp, "repo")
+            _init_repo(repo)
+            _git(repo, "config", "--unset", "user.name")
+            _git(repo, "config", "--unset", "user.email")
+            wm = WorkspaceManager(repo, worktrees_dir=os.path.join(tmp, "wt"),
+                                  release="release", main="main")
+            feat = wm.start_feature("demo.thing.widget")
+            wm.write_file(feat, "note.txt", "hello")
+            _git(feat.path, "add", "-A")
+            _git(feat.path, "commit", "-q", "-m", "direct commit")   # no inline -c
+            self.assertTrue(wm.changed_files(feat))
+
+    def test_an_existing_identity_is_never_overridden(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = os.path.join(tmp, "repo")
+            _init_repo(repo)
+            _git(repo, "config", "user.name", "Real Person")
+            wm = WorkspaceManager(repo, worktrees_dir=os.path.join(tmp, "wt"),
+                                  release="release", main="main")
+            wm.start_feature("demo.thing.widget")
+            self.assertEqual(workspace.git(repo, "config", "--get", "user.name"),
+                             "Real Person")
+
+
 if __name__ == "__main__":
     unittest.main()

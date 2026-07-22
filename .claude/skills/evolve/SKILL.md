@@ -410,6 +410,10 @@ Reuse the EXISTING modules read-only (never modify them), from the repo root on 
 - **ensure baseline / cut worktree / serialize / merge / diff:** `workspace.WorkspaceManager`
   (`ensure_baseline()` resets ROOT to pristine), e.g.
   `python3 -c "from workspace import WorkspaceManager as W; w=W('.'); print(w.start_feature('ev-<n>'))"`
+  On a LATER pass (merging an approved item, resuming one), the branch already exists — ask for the
+  handle with **`w.locate_feature('ev-<n>')`**, never `start_feature` (cutting an existing branch is an
+  error, and it is a lookup, not a create). `w.feature_exists('ev-<n>')` tests for one;
+  `start_feature(..., reuse=True)` is the explicit resume-or-create.
 - **test-host validate:** `build_loop.remote_validate` + its remote test-host driver.
 - **canonical role instructions + schemas:** `agents/prompts/<role>.md` + the `*_OUT`
   shapes in `agents/registry.py`.

@@ -21,7 +21,8 @@ import subprocess
 from dataclasses import dataclass
 
 # commit identity so this works without any global git config
-_ID = ["-c", "user.email=evolve@localhost", "-c", "user.name=Evolve"]
+_ID_EMAIL, _ID_NAME = "evolve@localhost", "Evolve"
+_ID = ["-c", f"user.email={_ID_EMAIL}", "-c", f"user.name={_ID_NAME}"]
 
 
 class GitError(RuntimeError):
@@ -82,12 +83,56 @@ class WorkspaceManager:
         os.makedirs(self.worktrees_dir, exist_ok=True)
 
     # --- box 1: feature workspace ----------------------------------------
-    def start_feature(self, item_id: str) -> Feature:
-        """Cut feature/<id> from `release` into an isolated worktree."""
+    def _feature_paths(self, item_id: str) -> tuple[str, str]:
         slug = _slug(item_id)
-        branch = f"feature/{slug}"
-        path = os.path.join(self.worktrees_dir, slug)
+        return f"feature/{slug}", os.path.join(self.worktrees_dir, slug)
+
+    def _ensure_identity(self) -> None:
+        """Seed a commit identity on the repo itself, once.
+
+        `commit()` passes an identity inline, but ANY other writer in the worktree —
+        an agent or script shelling out to plain `git commit` — sees only the repo
+        config, and git hard-fails with "Author identity unknown" on a repo that has
+        never had one set. That is the normal state of a repo the engine has just
+        taken over (a fresh clone), so the first build in it would die on the commit
+        step for a reason that has nothing to do with the work.
+
+        Only ever FILLS IN a missing identity — an identity the repo already has is
+        left exactly as it is."""
+        for key, val in (("user.name", _ID_NAME), ("user.email", _ID_EMAIL)):
+            if not git(self.repo, "config", "--get", key, check=False):
+                git(self.repo, "config", key, val, check=False)
+
+    def feature_exists(self, item_id: str) -> bool:
+        branch, path = self._feature_paths(item_id)
+        return bool(git(self.repo, "rev-parse", "--verify", "--quiet", branch,
+                        check=False)) or os.path.isdir(path)
+
+    def locate_feature(self, item_id: str) -> Feature:
+        """Return the Feature handle for an ALREADY-cut branch/worktree, creating
+        nothing.
+
+        A later pass (merging an approved item, resuming a stranded one) needs the
+        Feature only as a handle — the branch was cut on the build pass. Re-calling
+        start_feature to "find" it fails, because cutting a branch that exists is an
+        error; that is a lookup, not a create, so it gets its own verb."""
+        branch, path = self._feature_paths(item_id)
+        if not self.feature_exists(item_id):
+            raise GitError(f"no feature workspace for {item_id!r} (branch {branch})")
+        return Feature(item_id, branch, path)
+
+    def start_feature(self, item_id: str, *, reuse: bool = False) -> Feature:
+        """Cut feature/<id> from `release` into an isolated worktree.
+
+        Creating is deliberately NOT idempotent by default: silently handing back an
+        existing worktree would let a new build inherit a half-finished earlier
+        attempt's files. Pass reuse=True (resuming a known item) to accept an
+        existing one, or use locate_feature() when you only need the handle."""
+        branch, path = self._feature_paths(item_id)
+        if reuse and self.feature_exists(item_id):
+            return self.locate_feature(item_id)
         self._sync_release()
+        self._ensure_identity()
         git(self.repo, "worktree", "add", "-b", branch, path, self.release)
         return Feature(item_id, branch, path)
 
