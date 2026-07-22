@@ -23,6 +23,13 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+# Decisions that INSTRUCT the producer to go redo work and come back, as opposed to
+# an `approve`, which is a standing verdict the producer only consumes by resolving
+# the item. A re-push of the same gate ANSWERS a rework instruction, so it clears it
+# (see upsert_gate's DECISION SAFETY note).
+_REWORK_DECISIONS = ("change", "reject")
+
+
 class Store:
     def __init__(self, db_path: str):
         self.db_path = os.path.expanduser(db_path)
@@ -220,16 +227,22 @@ class Store:
         operator already recorded — the loop would then read 'waiting' and re-park an
         item the operator believes they approved. So a 'decided' row is preserved
         unless (a) the incoming gate KIND differs (the item advanced to its next
-        gate — a fresh decision is genuinely owed) or (b) reset=True (an explicit
-        re-open, e.g. the reverify endpoint)."""
+        gate — a fresh decision is genuinely owed), (b) reset=True (an explicit
+        re-open, e.g. the reverify endpoint), or (c) the standing decision is a
+        REWORK instruction (see _REWORK_DECISIONS) — that decision told the loop to
+        go redo work and come back, so the re-push carrying the redone work is what
+        CONSUMES it. Preserving it there would strand the item: the decision lingers
+        as 'decided' forever (polluting every later pending scan) while the operator
+        never gets asked about the reworked packet."""
         if not instance_id:
             raise ValueError("instance_id is required")
         packet_json = json.dumps(packet) if packet is not None else None
         with self._lock, self._conn:
             row = self._conn.execute(
-                "SELECT gate, status FROM gate_queue WHERE instance_id = ?",
+                "SELECT gate, status, decision FROM gate_queue WHERE instance_id = ?",
                 (instance_id,)).fetchone()
-            if (row and not reset and row["status"] == "decided"
+            consumed = bool(row) and (row["decision"] or "").lower() in _REWORK_DECISIONS
+            if (row and not reset and row["status"] == "decided" and not consumed
                     and (gate is None or gate == row["gate"])):
                 # same-gate re-push after a decision: merge metadata, keep the decision
                 self._conn.execute(

@@ -272,10 +272,16 @@ async def post_gate(request: Request, authorization: str | None = Header(default
         rec_action=rec.get("action"),
         rec_why=rec.get("why") or rec.get("rationale"),
         packet=packet,
+        reset=bool(body.get("reset")),   # explicit re-open; see store.upsert_gate
     )
     if _grepo:
         store.upsert_run(iid, repo=_grepo)  # tag the run too (COALESCE-safe)
-    return {"ok": True, "instance_id": iid, "status": "waiting"}
+    # Report the status actually STORED. A hardcoded "waiting" here misleads the
+    # caller whenever decision-safety preserved a standing decision — the push looks
+    # like it re-opened the gate when the row is still 'decided'.
+    _g = store.get_gate(iid) or {}
+    return {"ok": True, "instance_id": iid, "status": _g.get("status") or "waiting",
+            "decision": _g.get("decision")}
 
 
 @app.get(PREFIX + "/gates")
