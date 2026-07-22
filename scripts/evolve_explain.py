@@ -75,6 +75,30 @@ def _aslist(v):
     return [v]
 
 
+# Output keys the agent digest renders explicitly below; everything else an agent
+# emits is rendered generically (see _kv_body) so nothing is silently dropped.
+_KNOWN_AGENT_KEYS = ("summary", "approve", "concerns", "findings", "conflicts")
+
+
+def _kv_body(val, skip=()):
+    """Render an agent field WITHOUT assuming its key names.
+
+    Each agent defines its own output schema, so a digest that prints a fixed set
+    of keys silently drops anything else — a phase that produced real output then
+    renders as an empty section, making a well-evidenced item look like it never
+    ran. Render whatever the value actually carries instead.
+    """
+    if isinstance(val, dict):
+        parts = [(k, v) for k, v in val.items()
+                 if k not in skip and v not in (None, "", [], {})]
+        if len(parts) == 1:
+            return str(parts[0][1])          # single field — skip the redundant key
+        return " · ".join(f"{k}: {v}" for k, v in parts)
+    if isinstance(val, list):
+        return " · ".join(_kv_body(v) for v in val if v)
+    return "" if val is None else str(val)
+
+
 def digest(iid, runs):
     run = next((r for r in runs if r["instance_id"] == iid), {})
     try:
@@ -158,21 +182,27 @@ def digest(iid, runs):
         _line("summary", o.get("summary"))
         if "approve" in o:
             _line("approve", o.get("approve"))
-        for c in _aslist(o.get("concerns")):
-            if isinstance(c, dict):
-                _line(f"concern[{c.get('severity')}]", c.get("detail"))
+        # concerns / findings / conflicts: render whatever fields the entry carries.
+        # Agents spell the body differently (an audit finding is issue/fix; older
+        # ones used category/detail), so keying off fixed names printed a bare ": ".
+        for kind in ("concerns", "findings", "conflicts"):
+            for c in _aslist(o.get(kind)):
+                label = kind[:-1]
+                if isinstance(c, dict) and c.get("severity"):
+                    label = f"{label}[{c.get('severity')}]"
+                _line(label, _kv_body(c, skip=("severity",)))
+        # Anything else the agent emitted. Agents define their own output schemas
+        # (e.g. a reproduce step reports reproduced/observed/evidence, a screen
+        # reports verdict/rationale) — without this they rendered as an EMPTY
+        # section and their evidence was invisible in the digest.
+        for key, val in o.items():
+            if key in _KNOWN_AGENT_KEYS or not val:
+                continue
+            if isinstance(val, list):
+                for item in val:
+                    _line(key, _kv_body(item))
             else:
-                _line("concern", str(c))
-        for c in _aslist(o.get("findings")):
-            if isinstance(c, dict):
-                _line(f"finding[{c.get('severity')}]", f"{c.get('category', '')}: {c.get('detail', '')}")
-            else:
-                _line("finding", str(c))
-        for c in _aslist(o.get("conflicts")):
-            if isinstance(c, dict):
-                _line("conflict", f"{c.get('with_spec', '')}: {c.get('detail', '')}")
-            else:
-                _line("conflict", str(c))
+                _line(key, _kv_body(val))
 
     val = pkt.get("validation")
     if val:
