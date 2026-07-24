@@ -299,6 +299,7 @@
       <label>show</label>
       <span class="toggle">
         <button id="tgActive" class="on">active</button>
+        <button id="tgParked">parked</button>
         <button id="tgArchived">archived</button>
       </span>
     </div>
@@ -334,7 +335,7 @@ const TOKEN_KEY = "evolve_decide_token";
 
 const state = {
   repo: "",
-  archived: false,
+  view: "active",       // board filter: active | parked | archived
   runs: [],
   gates: [],            // waiting gates (for badges + selected packet)
   selectedId: null,
@@ -473,7 +474,16 @@ function boardSig() {
     return r.instance_id + ":" + columnForRun(r) + ":" +
       (g ? g.status + "/" + (g.decision || "") + "/" + (g.decided_by || "") : "");
   }).join("|");
-  return runs + "||intake:" + (state.intake || []).map(i => i.source).join(",");
+  return state.view + "||" + runs + "||intake:" + (state.intake || []).map(i => i.source).join(",");
+}
+
+// A parked/deferred item — kept off the active board. Detected by the run phase or a gate
+// resolved to 'parked' (columnForRun is intentionally left alone, so a parked item still maps
+// to its natural column; it's the top switch, not the column, that hides it).
+function isParkedRun(r) {
+  if ((r.phase || "").toLowerCase() === "parked") return true;
+  const g = gateForRun(r.instance_id);
+  return !!(g && (g.status || "").toLowerCase() === "parked");
 }
 
 function renderBoard() {
@@ -486,9 +496,14 @@ function renderBoard() {
   });
   board.textContent = "";
   const byCol = {}; for (const c of COLUMNS) byCol[c.key] = [];
-  for (const r of state.runs) byCol[columnForRun(r)].push(r);
+  // The top switch filters the board: 'parked' shows ONLY parked/deferred items (each in its
+  // natural column); 'active'/'archived' HIDE parked so it stays out of the way.
+  for (const r of state.runs) {
+    if (isParkedRun(r) !== (state.view === "parked")) continue;
+    byCol[columnForRun(r)].push(r);
+  }
   for (const c of COLUMNS) {
-    const queued = c.key === "new" ? (state.intake || []) : [];   // filed-but-not-started sit atop New
+    const queued = (c.key === "new" && state.view === "active") ? (state.intake || []) : [];   // filed-but-not-started sit atop New
     const count = byCol[c.key].length + queued.length;
     const col = el("div", { class: "column", "data-col": c.key });
     col.append(el("div", { class: "col-head" },
@@ -539,7 +554,7 @@ function renderCard(r) {
 
 async function loadRuns() {
   const q = new URLSearchParams();
-  q.set("archived", state.archived ? "1" : "0");
+  q.set("archived", state.view === "archived" ? "1" : "0");
   if (state.repo) q.set("repo", state.repo);
   const data = await apiJson("/runs?" + q.toString());
   state.runs = data.runs || [];
@@ -1292,8 +1307,9 @@ function wireHeader() {
   document.getElementById("modalBack").addEventListener("click", (e) => { if (e.target.id === "modalBack") closeModal(); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && isModalOpen()) closeModal(); });
   document.querySelectorAll(".toggle button").forEach(() => {});
-  document.getElementById("tgActive").addEventListener("click", () => setArchived(false));
-  document.getElementById("tgArchived").addEventListener("click", () => setArchived(true));
+  document.getElementById("tgActive").addEventListener("click", () => setView("active"));
+  document.getElementById("tgParked").addEventListener("click", () => setView("parked"));
+  document.getElementById("tgArchived").addEventListener("click", () => setView("archived"));
 
   const inp = document.getElementById("tokenInput");
   const commit = () => {
@@ -1309,10 +1325,11 @@ function wireHeader() {
   inp.addEventListener("input", commit);                       // typed/cut — commit live
   inp.addEventListener("paste", () => setTimeout(commit, 0));  // paste lands async — commit after
 }
-function setArchived(archived) {
-  state.archived = archived;
-  document.getElementById("tgActive").classList.toggle("on", !archived);
-  document.getElementById("tgArchived").classList.toggle("on", archived);
+function setView(view) {
+  state.view = view;
+  document.getElementById("tgActive").classList.toggle("on", view === "active");
+  document.getElementById("tgParked").classList.toggle("on", view === "parked");
+  document.getElementById("tgArchived").classList.toggle("on", view === "archived");
   if (isModalOpen()) closeModal();
   refreshAll();
 }
