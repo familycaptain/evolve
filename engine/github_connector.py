@@ -115,19 +115,28 @@ def _operator_logins() -> set:
     return {s.strip().lower() for s in (os.getenv("EVOLVE_OPERATOR_GH", "") or "").split(",") if s.strip()}
 
 
+INCIDENTAL_LABEL = "evolve-incidental"   # the loop tags its own self-filed issues with this
+
+
 def issue_to_work_item(issue: dict, repo: str | None = None) -> dict:
     """Map a GitHub issue to an Evolve work-item (the pipeline's s_issue input)."""
     repo = _repo(repo)
     author = (issue.get("user") or {}).get("login", "")
+    labels = [l.get("name") for l in issue.get("labels", [])]
+    # `from_operator` skips vision-fit, so it must mean "the operator vouched for this," not merely
+    # "authored by the operator's account." The loop self-files incidental issues using the operator's
+    # token (its only credential) — those would otherwise arrive pre-blessed and un-vision-fittable,
+    # the opposite of being triaged on their merits. The loop tags them INCIDENTAL_LABEL at creation;
+    # that label demotes them back to needing vision-fit. A human-authored issue carries no such label.
     return {
         "title": issue.get("title", "") or "",
         "body": issue.get("body") or "",
         "source": f"github:{repo}#{issue.get('number')}",
         "url": issue.get("html_url", ""),
         "number": issue.get("number"),
-        "labels": [l.get("name") for l in issue.get("labels", [])],
+        "labels": labels,
         "author": author,
-        "from_operator": author.lower() in _operator_logins(),   # operator-authored → skip vision-fit
+        "from_operator": (author.lower() in _operator_logins()) and INCIDENTAL_LABEL not in labels,
     }
 
 
