@@ -88,8 +88,23 @@ def main():
         # stays cheap as closed/done items pile up. Each entry: instance_id + gate + decision + note;
         # route on `gate`, cross-ref the local $EVOLVE_STATE_DIR/<n>/ dir for phase/artifacts.
         items = bridge.list_decided()
+        _base = os.path.expanduser(os.getenv("EVOLVE_STATE_DIR") or "~/.evolve/runs")
+        def _local_phase(iid):
+            sid = iid[3:] if iid and str(iid).startswith("ev-") else iid
+            try:
+                return json.load(open(os.path.join(_base, str(sid), "state.json"))).get("phase")
+            except Exception:
+                return None
+        # Annotate each decided gate with the item's LOCAL phase. A decided gate lingers in
+        # list_decided() until it is `resolve`d, so a gate1 approve stays here even after a later pass
+        # advanced the item to build/gate2/verify/done — the loop must route on the REAL phase, not the
+        # returned gate (re-acting on an advanced item's stale gate1 is a no-op; it should be resolved).
+        # This also surfaces an unpushed-gate3 STRAND for free: a decided gate1/gate2 whose local_phase
+        # is already `verify` means the gate3 packet was written but its push died (the gate never
+        # advanced), so the loop can re-push gate3 instead of the strand staying invisible to everyone.
         print(json.dumps([{"instance_id": x.get("instance_id"), "gate": x.get("gate"),
-                           "decision": x.get("decision"), "note": x.get("note")} for x in items]))
+                           "decision": x.get("decision"), "note": x.get("note"),
+                           "local_phase": _local_phase(x.get("instance_id"))} for x in items]))
     elif a.cmd == "stranded":
         # Local scan of $EVOLVE_STATE_DIR/*/state.json returning ONLY dirs stranded MID-SEGMENT — phase
         # `new`, `build`, or `gate2` (a pass died before the segment finished). Filtered HERE so the loop
