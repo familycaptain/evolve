@@ -20,6 +20,13 @@ production. Hunt specifically for these failure modes:
   ("works well", "is fast") — what exactly would a test check?
 - **Unstated preconditions** — assumes data exists, a single tenant/scope, one timezone,
   a logged-in user, network availability.
+- **Mechanism instead of outcome** — the behaviour describes HOW the code works rather
+  than what the product does. Tests: could a different implementation satisfy the same
+  sentence? Could someone who has never seen the code check it? Naming an internal
+  component, a flag, a state variable, a call order or a framework detail is the tell.
+  A spec outlives every implementation of it, so a behaviour written against today's code
+  is stale the moment the code moves. Report it as a finding — the outcome is usually
+  sitting right there underneath the mechanism, waiting to be stated plainly.
 
 For each problem, emit a finding with its `category`, a concrete `detail` (name the
 specific gap and, where useful, a worked example), and a `severity`. Set `sound`

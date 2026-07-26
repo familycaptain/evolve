@@ -260,6 +260,11 @@ Pick **ONE** item, run its segment below, then **END the pass** (do not start a 
   shows the box's last preparation). **When validate is GREEN**, set `verified: true` on each spec the change
   proved with a passing bound test (edit the spec YAML in the worktree so it merges with the
   code+test) — that graduates it from unverified baseline to an authoritative, code-governing contract.
+  **Touch ONLY that field.** Having the spec open with a fresh green run is how validation
+  narrative ends up in `notes` — what was proved, on which host, against which fixture. None
+  of that belongs in a spec: it describes one build on one afternoon, and a spec outlives
+  every implementation of it. The evidence already has two homes, the Gate-2 packet and the
+  issue. If the spec now reads wrongly, that is a finding to raise, not a note to append.
   **AFTER-EVIDENCE IS MANDATORY — do NOT push Gate 2 without it (symmetric with reproduce's
   before-evidence).** validate's output MUST carry a non-empty `evidence` list, and that evidence MUST be
   POSTED to the GitHub issue: a **rendered screenshot** via `attach_image_to_issue` for **any surface

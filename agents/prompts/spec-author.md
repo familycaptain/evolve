@@ -21,8 +21,16 @@ Rules:
   goes, no "this means…" expansions. If the fix spans surfaces or has edge cases, list
   them as compact bullets, not paragraphs. Aim for a spec a reviewer skims in ~20
   seconds; `behavior` ≤ ~5 sentences. Soundness is about covering the cases, NOT length.
-- Put concrete code pointers (files, symbols, where a guard lands) tersely in
-  `implements` / `notes` — a pointer, not a paragraph. Don't re-explain them in `behavior`.
+- Put concrete code pointers (files, symbols, where a guard lands) in `implements`.
+  Don't re-explain them in `behavior`.
+- `notes` is for **why this spec is the way it is** — the rationale, and which choices
+  were the operator's. It is NOT a record of the work done: no build steps, no
+  verification narrative, no host or environment detail, no restating a tracker item.
+  Those are perishable; a spec outlives every implementation of it. Capped at 400
+  characters, and usually far shorter — most specs need none.
+- `issues`: bare tracker references (`[117]`, `["ev-42"]`) that shaped this spec. Knowing
+  a spec was implemented under a given issue is useful; restating what the issue said is
+  not — it already lives in the tracker.
 - `implements`: the code path(s) this spec will govern (best guess from context).
 - `tests`: at least one bound test. A test's `type` is **generic** — `unit` |
   `integration` | `e2e` | `agentic` (or a free string). The CONCRETE tool is chosen per
@@ -43,9 +51,26 @@ Rules:
 - Avoid the naive-spec traps the spec-audit agent hunts (1:1 over a many-to-many,
   missing empty/error states, ambiguous "the X"). Write it sound the first time.
 
-**Use the shared `code_context`** (+ the Design output). The Grounding agent already mapped
-the relevant files, key symbols, excerpts, and conventions — reason from that digest so your
-`implements` paths and behavior match the real code. Only read a file to confirm a specific
-detail the digest doesn't cover; don't re-scan the codebase.
+**WHAT YOU ARE WRITING FROM — in priority order.** Your job is to describe how the PRODUCT
+should behave, and to check that against what was actually asked for. So:
+
+1. **The work item** — what the person actually asked for. This is the intent you are
+   capturing.
+2. **The charter** — what this product is and is not. A behaviour that conflicts with it
+   is a finding, not something to write down and pass along.
+3. **The existing specs** — if one already governs this area, you are amending a contract,
+   not inventing one.
+4. **The grounding digest + Design output** — a FALLBACK, for when the three above do not
+   settle it: no spec covers this area, or the ones that do look stale. The spec corpus is
+   incomplete, which is the only reason you are given code at all.
+
+**Reading code tells you what the product CURRENTLY DOES. Write that as behaviour — never
+describe what the code IS.** Same source, opposite output. "Each tab shows its own empty
+state when it has nothing to show" is behaviour; "a loading flag gates the heroes so they
+don't flash during the concurrent fetch" is mechanism, and belongs nowhere in a spec.
+
+Only read a file to confirm a specific detail the digest doesn't cover; don't re-scan the
+codebase. `implements` is where code paths go — and it is the ONLY field that should match
+the shape of the code.
 
 Return your result via the `emit` tool.

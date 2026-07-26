@@ -118,6 +118,47 @@ class Errors(unittest.TestCase):
         self.assertTrue(_has(rep.errors, "marked verified but has no bound tests"))
 
 
+class NotesAndIssues(unittest.TestCase):
+    """`notes` is rationale, not a build journal — and the shape enforces it.
+
+    Instructions to be concise ("tersely", "a pointer, not a paragraph") ask the writer
+    to judge what is relevant, which is the judgement that goes wrong: given the choice,
+    everything gets included. A cap and a typed list have nowhere to put the surplus.
+    """
+
+    def test_short_rationale_is_fine(self):
+        rep = check(parents() + [spec(notes="Two sizes because households share one screen.")])
+        self.assertTrue(rep.ok, rep)
+        self.assertFalse(_has(rep.warnings, "notes is"))
+
+    def test_a_build_journal_is_flagged(self):
+        journal = ("Verified at gate 2 on the test host; bundle compiled; the empty tabs "
+                   "render; sibling of the other change; no registry edit needed; ") * 4
+        rep = check(parents() + [spec(notes=journal)])
+        self.assertTrue(_has(rep.warnings, "notes is"))
+        # a warning, not an error — an existing corpus must still load
+        self.assertTrue(rep.ok, rep)
+
+    def test_the_warning_says_where_things_belong(self):
+        rep = check(parents() + [spec(notes="x" * 500)])
+        msg = next(w for w in rep.warnings if "notes is" in w)
+        self.assertIn("implements", msg)      # code paths
+        self.assertIn("issues", msg)          # issue references
+
+    def test_issue_references_stay_bare(self):
+        rep = check(parents() + [spec(issues=[117, "ev-42"])])
+        self.assertTrue(rep.ok, rep)
+
+    def test_a_description_in_issues_is_rejected(self):
+        # the moment this accepts prose it becomes the new dumping ground
+        rep = check(parents() + [spec(issues=[
+            "issue 117 — mobile pushes should log to the consciousness log so that"])])
+        self.assertTrue(_has(rep.errors, "bare references"))
+
+    def test_issues_is_optional(self):
+        self.assertTrue(check(parents() + [spec()]).ok)
+
+
 class Warnings(unittest.TestCase):
     def test_missing_title_warns(self):
         rep = check(parents() + [spec(title="")])

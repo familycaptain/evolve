@@ -18,6 +18,10 @@ from dataclasses import dataclass, field
 
 import yaml
 
+# A spec's `notes` is rationale, not a build log. Capped so the shape enforces that
+# without relying on the writer to judge what is relevant — see validate().
+MAX_NOTES_CHARS = 400
+
 KINDS = ("capability", "feature", "specification")
 DEPTH = {"capability": 1, "feature": 2, "specification": 3}
 
@@ -54,6 +58,19 @@ class Record:
     @property
     def implements(self) -> list[str]:
         return list(self.raw.get("implements") or [])
+
+    @property
+    def notes(self) -> str:
+        return (self.raw.get("notes") or "").strip()
+
+    @property
+    def issues(self) -> list:
+        """Tracker references that shaped this spec — BARE IDENTIFIERS ONLY.
+
+        A typed list exists so a reference has somewhere to go that cannot hold prose.
+        Knowing a spec was implemented under a particular issue is durable and useful;
+        restating what the issue said is not, and belongs in the tracker."""
+        return list(self.raw.get("issues") or [])
 
     @property
     def tests(self) -> list[dict]:
@@ -241,6 +258,26 @@ def validate(
             if r.verified and not r.tests:
                 rep.errors.append(f"{r.id}: marked verified but has no bound tests — verification "
                                   f"requires a passing bound test")
+            # `notes` records WHY the spec is as it is — rationale, and which choices were
+            # the operator's. It is not a build journal. Enforced as a SHAPE rather than
+            # as an instruction to be concise, because "include only what is relevant"
+            # asks for a judgement about relevance that is exactly what goes wrong: given
+            # the choice, everything gets included. A cap has nowhere to put the surplus.
+            # A warning, not an error, so an existing corpus written under the old habit
+            # still loads while the drift stays visible.
+            if len(r.notes) > MAX_NOTES_CHARS:
+                rep.warnings.append(
+                    f"{r.id}: notes is {len(r.notes)} chars (>{MAX_NOTES_CHARS}) — notes is "
+                    f"for WHY this spec is as it is, not a record of the work done. Code "
+                    f"paths belong in `implements`; validation evidence belongs in the "
+                    f"tracker; issue references belong in `issues`")
+            for ref in r.issues:
+                # Bare identifiers only. The moment this accepts free text it becomes the
+                # place the surplus goes, which is the failure `notes` already had.
+                if not isinstance(ref, (int, str)) or (isinstance(ref, str) and len(ref) > 24):
+                    rep.errors.append(
+                        f"{r.id}: issues entries must be bare references (an issue number "
+                        f"or short id), not descriptions — got {str(ref)[:40]!r}")
         # links resolve
         for key in ("related", "supersedes"):
             for target in r.links.get(key, []) or []:
