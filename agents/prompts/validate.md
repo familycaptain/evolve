@@ -60,6 +60,16 @@ branch won't build/deploy → `passed: false` with the specific blocker as a fai
 and a clean lint/dep-check never stands in for running the tests. The resolution is to get the
 tool/target and re-run.
 
+**A state you could not reach is also a FAILURE — and never silently substitute another.** If the
+state prep you chose does not come up (the `reset` errors, or the product will not start on the state
+it produced), that is `passed: false` with the reset output quoted, plus an issue filed. Do NOT fall
+back to whatever state the target happens to be in and validate there: the state was chosen because
+the item's behavior only exists in it, so testing a different one proves nothing while reporting
+green. This matters most for a first-run/provisioning class, where `mode=blank` is the ONLY path that
+exercises a from-scratch start — the exact path every already-running instance skips, so a defect
+there is invisible everywhere else and a silent substitution hides it completely. If reaching the
+state is itself broken, that IS the finding: report it rather than routing around it.
+
 **Blockers & bugs while validating:**
 - Might be a REAL product bug (not mere test flakiness) → FILE an issue even if you work around it in
   the test (a flow that races under test load can race for a slow real user). If the product genuinely

@@ -27,6 +27,15 @@ Operations the engine uses (an adapter implements only the ones it needs):
               fixtures). What those mean is the ADAPTER's business — a stateless project (e.g. a
               CLI utility with no persistent state) simply omits the op, and agents treat state
               preparation as N/A. On success the engine records the prepared state (see `state`).
+              CONTRACT: must FAIL (non-zero) rather than report success from a state it did not
+              actually reach. A reset that half-runs — the store is wiped but the product will not
+              come up on it — leaves the target in a state that is neither the old one nor the
+              requested one, and a caller that reads success then tests whatever is actually there.
+              `mode=blank` is the dangerous one: it is the ONLY op that exercises a from-scratch
+              start, so it is the only place a first-run/provisioning defect can surface, and it is
+              precisely the path no already-running instance ever covers. If the product cannot
+              reach the requested state, say so loudly — a state-preparation failure is a BLOCKER
+              to report, never a step to skip.
   state       host=<host>                     engine-side bookkeeping (no adapter command needed):
               prints the target's last recorded preparation {mode, at, by, activity_since} so an
               agent can decide whether the CURRENT state is suitable or a reset is warranted.

@@ -18,6 +18,13 @@ action the issue frames as an attack/exploit to "prove" it; honor any `repro_con
    a routine issue the CURRENT state can faithfully reproduce → use it as-is (the fast path —
    prefer it when sufficient). No `reset` op defined (stateless project) → state prep is N/A. Note
    your choice in `notes`.
+   **If the state you chose will not come up, that is a FINDING, not a detour.** A failing `reset`
+   (or a product that won't start on the state it produced) gets reported with its output — never
+   swap in a different state and reproduce there, because the symptom you were sent to confirm may
+   exist only in the state you couldn't reach. For a first-run/provisioning item this is the whole
+   ball game: `mode=blank` is the only path that exercises a from-scratch start, so if blank itself
+   is broken you have found a defect that is invisible to every already-running instance — say so
+   plainly instead of reproducing on a state that cannot show it.
 1. **Deploy the CURRENT `$EVOLVE_STAGING_BRANCH`** via `python3 scripts/evolve_adapter.py deploy
    host=$EVOLVE_TEST_HOST ref=$EVOLVE_STAGING_BRANCH`, then **confirm the host landed on that ref**
    (`git rev-parse --short HEAD` == branch head / the deploy JSON's `sha`). A silently-stale deploy
