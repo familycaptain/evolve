@@ -93,6 +93,53 @@ at once: length, mechanism in `behavior`, and a notes field full of build eviden
 If that is right, the fix is less about vocabulary rules and more about what the
 spec-author is asked to produce, and what `spec-audit` rewards.
 
+### Root cause (traced 2026-07-26) — it is not a missing rule
+
+The obvious fix is to tell spec-author to stop writing implementation. **That rule
+already exists** and is being ignored:
+
+- *"You write requirements, not code."*
+- *"State the desired end-state, not the implementation."*
+- on code pointers: *"a pointer, not a paragraph. Don't re-explain them in `behavior`."*
+
+So adding another instruction is not the fix. Three things are working against those
+rules at once:
+
+**1. The prompt contradicts itself.** Its closing instruction says to reason from the
+grounding digest *so your `implements` paths and behavior match the real code*. That
+asks for exactly what the earlier lines forbid. Given a direct conflict, the concrete
+instruction wins over the abstract one.
+
+**2. Its entire input is implementation.** The spec-author receives the Grounding output
+(a map of files, symbols, excerpts) and the Design output (the technical approach). It is
+asked to produce intent while being shown nothing but mechanism. It is, in effect, being
+handed the implementer's research and asked to summarise it — which is precisely what the
+measurements show it doing.
+
+**3. The `notes` journal is emergent, not instructed.** Nothing tells any agent to write
+validation evidence into a spec. What the skill DOES say is that when validation is
+green, the loop should edit the spec YAML in the worktree to set `verified: true`. That
+edit is the opening: with the file already open and the validation fresh, the loop writes
+down what it just proved. Hence 657-char notes full of gate references, host names and
+mock records that nobody asked for.
+
+### What that implies for a fix
+
+- Remove the contradiction. "Match the real code" is right for `implements` and wrong for
+  `behavior`; the sentence currently applies it to both.
+- Reconsider the INPUTS, not just the instructions. A spec-author fed the work item, the
+  charter, and the operator's stated intent would write something different from one fed
+  a code map. If it needs grounding at all, it may need it only to fill `implements`.
+- Constrain the post-validation edit to the field it is meant to touch. Setting
+  `verified: true` should not be an invitation to append a build log.
+- `spec-audit` shapes what survives. If the critic treats completeness as quality, it
+  will keep pulling specs toward being thorough build records. Worth checking what it
+  actually rewards before changing the author.
+
+The through-line: the spec-author is documenting the work it just did, rather than
+describing how the product should behave and checking that against the charter and the
+operator's intent. Everything measured follows from that one substitution.
+
 ### Where to look
 
 - `agents/prompts/spec-author.md` — what the spec-writing agent is asked to produce
