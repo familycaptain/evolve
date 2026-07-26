@@ -127,9 +127,17 @@ mock records that nobody asked for.
 
 - Remove the contradiction. "Match the real code" is right for `implements` and wrong for
   `behavior`; the sentence currently applies it to both.
-- Reconsider the INPUTS, not just the instructions. A spec-author fed the work item, the
-  charter, and the operator's stated intent would write something different from one fed
-  a code map. If it needs grounding at all, it may need it only to fill `implements`.
+- Grounding is not the problem and should NOT be removed. Operator intent (2026-07-26):
+  it is there because the existing spec corpus is incomplete, so the author can go back
+  to the code **when it needs to** — where no spec covers the area, or where the specs
+  that do look stale. It was never meant to be summarised.
+  What is missing is the RANKING. The primary sources are the work item (what the person
+  actually asked for), the charter, and the existing specs; grounding is a FALLBACK
+  consulted when those are silent or out of date. Today it arrives as the richest,
+  most concrete input and is treated as the subject.
+  The distinction to make explicit: read the code to learn **what the product currently
+  does**, then state that as behaviour — not to describe **what the code is**. Same
+  source, opposite output.
 - Constrain the post-validation edit to the field it is meant to touch. Setting
   `verified: true` should not be an invitation to append a build log.
 - `spec-audit` shapes what survives. If the critic treats completeness as quality, it
