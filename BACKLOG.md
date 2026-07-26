@@ -47,6 +47,52 @@ alongside the code they describe, they are documentation of an implementation ra
 than a specification of a product. If they can regenerate the product, they captured
 intent.
 
+### Measured on the live corpus (2026-07-26)
+
+485 spec records in the Skipper instance, split by git origin: 296 hand-authored,
+45 written by the loop (excluding `_feature`/`_capability` records).
+
+| | hand-authored | loop-written |
+|---|---|---|
+| average length | 15 lines | **54 lines** (3.6x) |
+| implementation vocabulary inside `behavior` | 6% | **57%** |
+| average `notes` length | 50 chars | **657 chars** (13x) |
+| process metadata (`ev-NN`, `Gate-2`, "test host") | 2% | **88%** |
+
+The gap is not stylistic drift. It is two different documents wearing the same schema.
+
+**A hand-authored spec, in full** (`lists.collections.add-item`) — the behaviour is one
+sentence, and someone who has never seen the code can check it:
+
+> Adding an item appends it to a list (and, for a board-backed list, creates the backing
+> Trello card).
+
+**A loop-written one** (`auto.detail.per-tab-heroes`) names a React component in its
+title, and its `behavior` ends with a sentence that is purely mechanism: a dedicated
+loading state gating the heroes so they do not flash during a concurrent fetch. That
+describes how the code avoids a flicker, not what the product does.
+
+### The biggest single offender is `notes`
+
+13x longer, and 88% of loop specs carry process metadata. `notes` has become a
+**validation journal**: what was verified at which gate, on which host, against which
+mock record, which sibling ev-number it relates to, which registry it deliberately did
+not touch.
+
+None of that is the product. All of it is perishable — it describes one build of one
+change on one afternoon — and it is stored in the one artifact that is supposed to
+outlive every implementation. This is also the most tractable thing to fix: the
+validation record already has a home in the gate packet and the GitHub issue.
+
+### What this suggests (to confirm, not assume)
+
+The loop appears to be writing the spec as a *record of the work it just did* rather
+than a statement of what the product should do. That would explain every number above
+at once: length, mechanism in `behavior`, and a notes field full of build evidence.
+
+If that is right, the fix is less about vocabulary rules and more about what the
+spec-author is asked to produce, and what `spec-audit` rewards.
+
 ### Where to look
 
 - `agents/prompts/spec-author.md` — what the spec-writing agent is asked to produce
