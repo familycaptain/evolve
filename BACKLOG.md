@@ -156,6 +156,36 @@ mock records that nobody asked for.
   that looks genuinely durable is RATIONALE: why the product behaves this way, and which
   choices were the operator's. That is intent, it outlives any implementation, and it has
   nowhere else to live. Everything else currently in `notes` has a better home already.
+  Operator (2026-07-26): notes should say **why the spec is the way it is**, or something
+  otherwise relevant to the requirement — never a list of build steps that occurred. A
+  list of GitHub issue NUMBERS that shaped the spec is welcome (knowing a spec was
+  implemented under a particular issue is genuinely useful) **provided the reference stays
+  a bare number** and does not become an invitation to restate the issue.
+
+### The principle underneath all of this
+
+Operator's read, and it is the sharpest framing available: the engine has a hard time
+telling what is relevant from what is not, so it is verbose and includes everything.
+
+That explains why every instruction tried so far has failed the same way. "Tersely", "a
+pointer, not a paragraph", "state the end-state, not the implementation" all ask the
+author to EXERCISE JUDGEMENT about relevance — the exact faculty that is missing. Another
+carefully worded rule will fail identically.
+
+**So prefer structure over judgement.** Give a field a shape that has nowhere to put the
+surplus, and relevance stops being a decision:
+
+- `notes` split into a short rationale and a list of issue NUMBERS. A list of integers
+  cannot absorb a build log; no restraint is required of the writer.
+- `behavior` constrained by form (an observable outcome, stated as what a person can
+  check) rather than by adjectives about length.
+- The post-validation edit permitted to touch `verified:` and nothing else.
+
+Each of those removes the need to judge instead of asking for better judgement. That is
+also the cheaper thing to verify: a schema can enforce a shape, and no prompt can enforce
+a sense of proportion.
+
+
 - `spec-audit` shapes what survives. If the critic treats completeness as quality, it
   will keep pulling specs toward being thorough build records. Worth checking what it
   actually rewards before changing the author.
