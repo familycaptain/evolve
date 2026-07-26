@@ -26,6 +26,12 @@ spec ages the moment the code moves.
 Specs should read as a project manager would write them: the outcome, who it is for,
 why it matters, what "done" means, what is explicitly out of scope.
 
+**Almost always, that means an expected OUTCOME — observable behaviour.** "When you
+click this button, X happens." "When a reminder is due and the person is not at a
+screen, it reaches them on their phone." "A brand-new household can finish setup without
+being told to edit a file." Someone should be able to read a spec and know what to check
+without knowing how any of it was built.
+
 The technical plan is still valuable — it just belongs in the **GitHub issue**, as the
 plan for how this particular change will be carried out. Keeping it there means the
 spec stays a durable statement of intent while the issue holds the perishable detail.
@@ -51,9 +57,15 @@ intent.
 
 ### Worth weighing while evaluating
 
-- Some technical constraint IS intent ("must work without an internet connection",
-  "must not require a login"). The line is not "no technical words" — it is whether the
-  statement describes the product or the plumbing.
+- Occasionally a technical constraint genuinely IS the intent — "must work without an
+  internet connection", "must not require a login". In that case the constraint itself
+  is the spec: state it plainly and stop. It does not license describing HOW the
+  constraint gets satisfied.
+  This is the EXCEPTION and should be treated as rare. Most specs are capturing an
+  expected outcome, and "but this constraint is really intent" is exactly the excuse
+  that would keep engineering detail in specs where it does not belong. If a statement
+  could be replaced by a different implementation without changing what the user
+  experiences, it is plumbing.
 - The bound tests attached to a spec are part of its meaning. If specs move toward
   intent, the tests need to stay concrete enough to prove the intent was met.
 - The regeneration test above may be worth running as an actual experiment on a small
