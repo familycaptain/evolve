@@ -306,6 +306,12 @@ Pick **ONE** item, run its segment below, then **END the pass** (do not start a 
     operator a known-broken build. Treat it as a verify `change`: **RESUME THE SAME CONVERSATION**,
     judge the depth (localized bug → re-implement → Gate 2; new approach → re-spec → Gate 1), fix,
     re-validate. **END.**
+  - **NO VALIDATION AT ALL is the same as RED — and the platform now enforces it.** The verify-gate
+    push is REFUSED (HTTP 422) unless its packet carries a truthy `validation.passed`. That refusal is
+    a permanent error, not a transient one: it is NOT buffered, and the push does not happen. If you
+    hit it, the fix is never to fabricate a validation block or retry — it means the validate segment
+    did not actually run and produce evidence, so **go run it**, or report the failure and push back.
+    A change the engine could not validate must never be presented to the operator as ready-to-verify.
   - **GREEN:** **first `git push origin $EVOLVE_STAGING_BRANCH`** (fast-forward) so the merged code reaches
   GitHub. The brain merges to its **LOCAL** `$EVOLVE_STAGING_BRANCH` and does NOT otherwise push; the uat
   host tracks **GitHub** `origin/$EVOLVE_STAGING_BRANCH`, so WITHOUT this push the operator's uat verify runs a

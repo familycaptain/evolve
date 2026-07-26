@@ -23,6 +23,7 @@ from pathlib import Path
 from fastapi import Body, FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 
+from .gate_rules import VERIFY_GATE, verify_gate_refusal
 from .store import Store
 
 # --- config (from the repo-root .env) ----------------------------------------
@@ -236,7 +237,7 @@ async def reverify_run(instance_id: str, authorization: str | None = Header(defa
         # never fabricate a blank, packet-less gate card for a run that has no gate row
         raise HTTPException(status_code=404, detail=f"no gate to re-open for {instance_id}")
     # Re-open the gate (waiting) without clobbering its packet.
-    store.upsert_gate(instance_id, gate="gate3", reset=True)
+    store.upsert_gate(instance_id, gate=VERIFY_GATE, reset=True)
     store.upsert_run(instance_id, status="waiting", phase="verify")
     return {"ok": True, "instance_id": instance_id, "reverify": True}
 
@@ -257,6 +258,14 @@ async def post_gate(request: Request, authorization: str | None = Header(default
     if not title and packet:
         title = (packet.get("work_item") or {}).get("title")
     rec = (packet.get("recommendation") if packet else None) or body.get("recommendation") or {}
+    # VERIFY-GATE EVIDENCE INTERLOCK (see dashboard/gate_rules.py for the why).
+    # Enforced HERE because this endpoint is the chokepoint every gate push funnels
+    # through, so no caller can bypass it. The reverify endpoint re-opens an EXISTING
+    # verify gate via upsert_gate directly and does not come through here, so
+    # re-verification of already-validated work is unaffected.
+    _refusal = verify_gate_refusal(gate, packet)
+    if _refusal:
+        raise HTTPException(status_code=422, detail=_refusal)
     # derive repo from the gate packet's work_item.source (run-reporting often omits source) so the
     # dashboard repo filter works for every item — every item passes through a gate.
     _grepo = body.get("repo") or (packet.get("repo") if packet else None)
