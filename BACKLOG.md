@@ -140,6 +140,22 @@ mock records that nobody asked for.
   source, opposite output.
 - Constrain the post-validation edit to the field it is meant to touch. Setting
   `verified: true` should not be an invitation to append a build log.
+- **`notes` needs more than the post-validation constraint.** That constraint stops one
+  writer; there are two, and beneath both is a field with no definition.
+  `notes` appears NOWHERE in `engine/schema.py` — it is unvalidated and undescribed — and
+  the spec-author prompt mentions it once, bundled with `implements` as a place for terse
+  code pointers, guarded only by "a pointer, not a paragraph". That is the same soft
+  instruction being ignored elsewhere.
+  An undefined field absorbs whatever is in the writer's head, and that is exactly what
+  the corpus shows: gate references, host names, mock records, sibling ev-numbers, design
+  rationale and operator decisions all pooled in one place. Hand-authored specs average 50
+  characters here and often leave it empty; loop specs average 657.
+  So `notes` needs a decided purpose, not just a narrower edit window. `implements`
+  already holds code paths and the gate packet and issue already hold validation
+  evidence — which leaves the question of what, if anything, is left. The one candidate
+  that looks genuinely durable is RATIONALE: why the product behaves this way, and which
+  choices were the operator's. That is intent, it outlives any implementation, and it has
+  nowhere else to live. Everything else currently in `notes` has a better home already.
 - `spec-audit` shapes what survives. If the critic treats completeness as quality, it
   will keep pulling specs toward being thorough build records. Worth checking what it
   actually rewards before changing the author.
