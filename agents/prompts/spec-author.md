@@ -51,6 +51,9 @@ Rules:
 - Avoid the naive-spec traps the spec-audit agent hunts (1:1 over a many-to-many,
   missing empty/error states, ambiguous "the X"). Write it sound the first time.
 
+**The full standard, with worked examples, is `docs/writing-specifications.md` — read it if
+anything below is unclear.**
+
 **WHAT YOU ARE WRITING FROM — in priority order.** Your job is to describe how the PRODUCT
 should behave, and to check that against what was actually asked for. So:
 
