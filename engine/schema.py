@@ -158,15 +158,48 @@ def unreadable_paths(specs_root: str) -> list[tuple[str, str]]:
     return bad
 
 
+def _capability_id_at(specs_root: str) -> str:
+    """The capability id declared by `<specs_root>/_capability.yaml`, or "" if there is none.
+
+    A corpus states its own identity, so this beats guessing from the directory name.
+    """
+    path = os.path.join(specs_root, "_capability.yaml")
+    if not os.path.isfile(path):
+        return ""
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            doc = yaml.safe_load(fh)
+    except Exception:
+        return ""
+    if isinstance(doc, dict) and doc.get("kind") == "capability":
+        return str(doc.get("id") or "")
+    return ""
+
+
 def corpus_roots(repo_root: str = ".") -> list[str]:
-    """Every specs-tree root in a target repo: `apps/<cap>/specs` plus `specs/<cap>`.
+    """Every specs-tree root in a target repo.
 
     THE definition of where a corpus lives, so callers cannot disagree about it. Anything that
     walks the corpus (validation, indexing, coverage) should start here rather than globbing on
     its own — a private glob that omits a root makes that root's records silently uncounted.
+
+    Three layouts, all supported, because a product may use more than one at once:
+      * `apps/<cap>/specs`  — an app inside a multi-app repo
+      * `specs/<cap>`       — a capability of the product itself
+      * `specs`             — a STANDALONE repo that IS one capability (its `specs/` holds the
+                              `_capability.yaml` directly). Without this, such a repo's corpus is
+                              mistaken for a pile of unrelated roots named after its features, and
+                              every record fails as an id/path mismatch — i.e. it cannot be
+                              validated at all.
     """
     roots = sorted(glob.glob(os.path.join(repo_root, "apps", "*", "specs")))
-    for path in sorted(glob.glob(os.path.join(repo_root, "specs", "*"))):
+
+    top = os.path.join(repo_root, "specs")
+    if _capability_id_at(top):
+        roots.append(top)          # standalone: `specs/` is the corpus, not a parent of corpora
+        return roots
+
+    for path in sorted(glob.glob(os.path.join(top, "*"))):
         if os.path.isdir(path) and scan_paths(path):
             roots.append(path)
     return roots
@@ -334,8 +367,18 @@ def load_and_validate(specs_root: str, *, repo_root: str, capability: str,
 
 
 def capability_from_root(specs_root: str) -> str:
-    """The capability id for a specs-tree root. apps/<cap>/specs -> <cap> (the app layout);
-    specs/<cap> -> <cap> (platform-wide). Lets callers derive the capability from the path."""
+    """The capability id for a specs-tree root.
+
+    The corpus states its own identity in `_capability.yaml`, so that wins when present — it is
+    the only source that stays right when a repo is renamed, vendored into another tree, or laid
+    out as a standalone capability whose directory is simply `specs`.
+
+    Falling back to the path: apps/<cap>/specs -> <cap> (the app layout); specs/<cap> -> <cap>
+    (a capability of the product itself).
+    """
+    declared = _capability_id_at(specs_root)
+    if declared:
+        return declared
     parts = os.path.normpath(specs_root).split(os.sep)
     if len(parts) >= 2 and parts[-1] == "specs":
         return parts[-2]
