@@ -139,6 +139,39 @@ def scan_paths(specs_root: str) -> list[str]:
     return found
 
 
+def unreadable_paths(specs_root: str) -> list[tuple[str, str]]:
+    """Every *.yaml under specs_root that could not be parsed at all, as (path, reason).
+
+    `scan_paths` skips these silently — it has to, since it cannot tell a broken record from an
+    unrelated YAML file. But a file that LOOKS like a record and cannot be read is invisible
+    otherwise: never scanned, never validated, never reported. A corpus can therefore be missing
+    records with a clean validation run, which is the worst way for a spec to go missing. This
+    reports them so `load_and_validate` can fail on them instead.
+    """
+    bad: list[tuple[str, str]] = []
+    for path in sorted(glob.glob(os.path.join(specs_root, "**", "*.yaml"), recursive=True)):
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                yaml.safe_load(fh)
+        except Exception as exc:
+            bad.append((path, f"{type(exc).__name__}: {str(exc).splitlines()[0][:120]}"))
+    return bad
+
+
+def corpus_roots(repo_root: str = ".") -> list[str]:
+    """Every specs-tree root in a target repo: `apps/<cap>/specs` plus `specs/<cap>`.
+
+    THE definition of where a corpus lives, so callers cannot disagree about it. Anything that
+    walks the corpus (validation, indexing, coverage) should start here rather than globbing on
+    its own — a private glob that omits a root makes that root's records silently uncounted.
+    """
+    roots = sorted(glob.glob(os.path.join(repo_root, "apps", "*", "specs")))
+    for path in sorted(glob.glob(os.path.join(repo_root, "specs", "*"))):
+        if os.path.isdir(path) and scan_paths(path):
+            roots.append(path)
+    return roots
+
+
 def parse_file(path: str) -> Record:
     with open(path, "r", encoding="utf-8") as fh:
         doc = yaml.safe_load(fh)
@@ -293,6 +326,10 @@ def load_and_validate(specs_root: str, *, repo_root: str, capability: str,
     records = [parse_file(p) for p in scan_paths(specs_root)]
     rep = validate(records, specs_root=specs_root, repo_root=repo_root,
                    capability=capability, on_main=on_main, bootstrap=bootstrap)
+    # A file too broken to parse never reaches `records`, so nothing above can complain about it.
+    # Report it here or the corpus loads "clean" while missing records.
+    for path, reason in unreadable_paths(specs_root):
+        rep.errors.append(f"{path}: unreadable, so not loaded at all — {reason}")
     return records, rep
 
 
